@@ -14,7 +14,8 @@
     "desktop:dist": "npm run build && electron-builder --publish never",
     "test:teamups": "node tests/teamups.mjs",
     "test:bots": "node tests/bot-difficulty.mjs",
-    "test:arenas": "node tests/arenas.mjs"
+    "test:arenas": "node tests/arenas.mjs",
+    "test:graphics": "node tests/graphics-quality.mjs"
   },
   "dependencies": {
     "three": "^0.180.0",
