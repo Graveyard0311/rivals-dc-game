@@ -49,7 +49,7 @@
 
 ## Milestone F — Packaging/polish
 - Browser-hosted test URL
-- Downloadable desktop wrapper/build
+- Downloadable desktop wrapper/build ✅ Electron wrapper + cross-platform packaging workflow
 - Settings and keybinds
 - Performance optimization
 - Animation/model/audio polish
