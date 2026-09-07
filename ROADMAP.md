@@ -51,7 +51,7 @@
 ## Milestone F — Packaging/polish
 - Browser-hosted test URL ✅ GitHub Pages workflow
 - Downloadable desktop wrapper/build ✅ Electron wrapper + cross-platform packaging workflow
-- Settings and keybinds
+- Settings and keybinds ✅ persistent FOV/sensitivity/audio/health-bar toggles + keyboard rebinding
 - Performance optimization
 - Animation/model/audio polish
 - Final private-demo QA
