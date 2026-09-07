@@ -61,6 +61,7 @@ app.innerHTML = `
           <label>Field of view <input id="fovSetting" type="range" min="70" max="110" step="1"><span id="fovValue"></span></label>
           <label>Master volume <input id="masterVolume" type="range" min="0" max="1" step="0.05"><span id="masterVolumeValue"></span></label>
           <label class="toggle-setting"><input id="reducedCameraShake" type="checkbox"> Reduced camera shake</label>
+          <label class="toggle-setting"><input id="showHealthBars" type="checkbox"> Show combatant health bars</label>
         </div>
         <div id="keybindGrid" class="keybind-grid"></div>
         <button id="resetSettingsBtn" class="network-btn settings-reset">RESET SETTINGS</button>
@@ -117,6 +118,10 @@ document.querySelector('#reducedCameraShake').addEventListener('change', e => {
   settings.reducedCameraShake = e.target.checked;
   persistSettings();
 });
+document.querySelector('#showHealthBars').addEventListener('change', e => {
+  settings.showHealthBars = e.target.checked;
+  persistSettings();
+});
 document.querySelector('#keybindGrid').addEventListener('click', e => {
   const button = e.target.closest('[data-bind]');
   if (!button) return;
@@ -153,12 +158,14 @@ function renderSettings() {
   const fov = document.querySelector('#fovSetting');
   const volume = document.querySelector('#masterVolume');
   const reduced = document.querySelector('#reducedCameraShake');
-  if (!sens || !fov || !volume || !reduced) return;
+  const bars = document.querySelector('#showHealthBars');
+  if (!sens || !fov || !volume || !reduced || !bars) return;
 
   sens.value = String(settings.mouseSensitivity);
   fov.value = String(settings.fov);
   volume.value = String(settings.masterVolume);
   reduced.checked = settings.reducedCameraShake;
+  bars.checked = settings.showHealthBars;
   document.querySelector('#mouseSensitivityValue').textContent = settings.mouseSensitivity.toFixed(4);
   document.querySelector('#fovValue').textContent = String(settings.fov);
   document.querySelector('#masterVolumeValue').textContent = `${Math.round(settings.masterVolume * 100)}%`;
@@ -1339,7 +1346,7 @@ function updateFighterBars() {
     const bar = f.userData.healthGroup;
     const fill = f.userData.healthFill;
     if (!bar || !fill) continue;
-    bar.visible = f.userData.alive;
+    bar.visible = settings.showHealthBars && f.userData.alive;
     if (!f.userData.alive) continue;
     bar.quaternion.copy(camera.quaternion);
     const pct = THREE.MathUtils.clamp(f.userData.hp / f.userData.maxHp, 0, 1);
