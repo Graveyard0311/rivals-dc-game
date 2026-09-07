@@ -44,7 +44,7 @@
 - Individual bespoke hero kits ✅ / expanding
 - Team Deathmatch ✅
 - Team-up abilities
-- Additional arenas
+- Additional arenas ✅ Nexus District, Gotham Foundry, Themyscira Ruins / expanding
 - Convoy/payload and hybrid modes
 - More bot personalities/difficulty levels
 
