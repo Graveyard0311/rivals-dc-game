@@ -44,3 +44,13 @@ Open the Vite URL in a desktop browser.
 5. In a two-client lobby, have the host select Team Deathmatch and start the match.
 6. Confirm both clients enter Team Deathmatch and display the same team scores.
 7. Confirm human-vs-human and human-vs-bot eliminations update the shared score once, without duplicate scoring.
+
+
+## Settings and keybind test
+
+1. Open **SETTINGS & KEYBINDS** on the hero-select screen.
+2. Change FOV, mouse sensitivity, master volume and reduced camera shake.
+3. Remap movement, jump, ability and ultimate keys.
+4. Deploy and verify the new controls/settings apply immediately.
+5. Reload the game and verify settings persist.
+6. Use **RESET SETTINGS** and verify defaults are restored.
