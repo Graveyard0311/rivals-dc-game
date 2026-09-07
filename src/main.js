@@ -33,6 +33,8 @@ const network = new NetworkClient();
 let joinedLobby = false;
 let lobbyHostId = null;
 let lastNetworkStateAt = 0;
+let networkPlayers = [];
+const remoteFighters = new Map();
 
 app.innerHTML = `
   <div id="heroSelect" class="hero-select">
@@ -224,7 +226,7 @@ function pulseEffect(position, color, radius = 3, duration = 0.45) {
   effects.push({ mesh, age: 0, duration, radius });
 }
 
-function makeFighter(hero, team, isPlayer = false) {
+function makeFighter(hero, team, isPlayer = false, isRemote = false, networkId = null) {
   const g = new THREE.Group();
   const mat = new THREE.MeshStandardMaterial({ color: hero.color, roughness: 0.35, metalness: 0.38 });
   const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.58, 1.05, 5, 10), mat);
@@ -255,7 +257,7 @@ function makeFighter(hero, team, isPlayer = false) {
   g.add(healthGroup);
 
   g.userData = {
-    hero, team, body, hp: hero.hp, maxHp: hero.hp, alive: true, isPlayer,
+    hero, team, body, hp: hero.hp, maxHp: hero.hp, alive: true, isPlayer, isRemote, networkId,
     respawnAt: 0, lastAttack: 0, target: null, abilityReadyAt: 0,
     ultReadyAt: 18000 + Math.random() * 9000, shieldUntil: 0,
     stunnedUntil: 0, empoweredUntil: 0, rootedUntil: 0, slowedUntil: 0, hasteUntil: 0,
@@ -333,6 +335,10 @@ function damage(target, amount, attacker) {
   }
 }
 
+function opposingTeam(team) {
+  return team === 'blue' ? 'red' : 'blue';
+}
+
 function living(team) {
   return fighters.filter(f => f.userData.team === team && f.userData.alive);
 }
@@ -358,7 +364,7 @@ function teamFor(team) {
   return fighters.filter(f => f.userData.team === team && f.userData.alive);
 }
 
-function startMatch() {
+function startMatch(players = networkPlayers) {
   if (matchStarted) return;
   matchStarted = true;
   matchOver = false;
@@ -370,11 +376,26 @@ function startMatch() {
   document.querySelector('#heroSelect').classList.add('hidden');
   document.querySelector('#hud').classList.remove('hidden');
 
-  player = makeFighter(selectedHero, 'blue', true);
+  const localTeam = joinedLobby && network.team ? network.team : 'blue';
+  player = makeFighter(selectedHero, localTeam, true, false, network.playerId);
   fighters.push(player);
-  const bluePool = HEROES.filter(h => h.id !== selectedHero.id);
-  for (let i = 1; i < TEAM_SIZE; i++) fighters.push(makeFighter(bluePool[(i - 1) % bluePool.length], 'blue'));
-  for (let i = 0; i < TEAM_SIZE; i++) fighters.push(makeFighter(HEROES[(i + 6) % HEROES.length], 'red'));
+
+  if (joinedLobby && Array.isArray(players)) {
+    for (const p of players) {
+      if (p.id === network.playerId) continue;
+      const remote = makeFighter(getHero(p.heroId), p.team, false, true, p.id);
+      fighters.push(remote);
+      remoteFighters.set(p.id, remote);
+    }
+  }
+
+  for (const team of ['blue', 'red']) {
+    const existing = fighters.filter(f => f.userData.team === team).length;
+    const pool = HEROES.filter(h => h.id !== selectedHero.id);
+    for (let i = existing; i < TEAM_SIZE; i++) {
+      fighters.push(makeFighter(pool[(i + (team === 'red' ? 5 : 0)) % pool.length], team));
+    }
+  }
 
   fighters.filter(f => f.userData.team === 'blue').forEach((f, i) => resetFighter(f, i));
   fighters.filter(f => f.userData.team === 'red').forEach((f, i) => resetFighter(f, i));
@@ -407,6 +428,7 @@ network.on('connection', ({ connected }) => {
 
 network.on('joined', msg => {
   joinedLobby = true;
+  networkPlayers = msg.players || [];
   lobbyHostId = msg.hostId;
   document.querySelector('#lobbyCode').value = msg.lobbyCode;
   const host = msg.playerId === msg.hostId;
@@ -415,11 +437,35 @@ network.on('joined', msg => {
 });
 
 network.on('player-joined', msg => {
+  networkPlayers = msg.players || networkPlayers;
   setNetworkStatus(`Lobby ${network.lobbyCode} · ${msg.players.length}/12 players`);
 });
 
 network.on('player-left', msg => {
+  networkPlayers = msg.players || networkPlayers.filter(p => p.id !== msg.id);
+  const remote = remoteFighters.get(msg.id);
+  if (remote) {
+    remote.visible = false;
+    scene.remove(remote);
+    const idx = fighters.indexOf(remote);
+    if (idx >= 0) fighters.splice(idx, 1);
+    remoteFighters.delete(msg.id);
+  }
   setNetworkStatus(`Lobby ${network.lobbyCode} · ${msg.players.length}/12 players`);
+});
+
+network.on('player-updated', msg => {
+  networkPlayers = msg.players || networkPlayers;
+});
+
+network.on('state', msg => {
+  const remote = remoteFighters.get(msg.id);
+  if (!remote || !msg.position) return;
+  remote.position.lerp(new THREE.Vector3(msg.position.x, msg.position.y, msg.position.z), 0.62);
+  remote.rotation.y = Number(msg.rotationY || 0);
+  remote.userData.hp = THREE.MathUtils.clamp(Number(msg.hp || 0), 0, remote.userData.maxHp);
+  remote.userData.alive = Boolean(msg.alive);
+  remote.visible = remote.userData.alive;
 });
 
 network.on('host-changed', msg => {
@@ -428,8 +474,9 @@ network.on('host-changed', msg => {
   deployBtn.textContent = host ? 'START PRIVATE MATCH' : 'WAITING FOR HOST';
 });
 
-network.on('match-start', () => {
-  if (!matchStarted) startMatch();
+network.on('match-start', msg => {
+  networkPlayers = msg.players || networkPlayers;
+  if (!matchStarted) startMatch(networkPlayers);
 });
 
 network.on('error', msg => {
@@ -522,7 +569,7 @@ function playerShoot() {
   tone(selectedHero.attackType === 'melee' ? 130 : 280, 0.045, 0.018, selectedHero.attackType === 'melee' ? 'square' : 'sawtooth');
 
   const attackType = selectedHero.attackType || 'beam';
-  const enemies = fighters.filter(f => f.userData.team === 'red' && f.userData.alive);
+  const enemies = fighters.filter(f => f.userData.team === opposingTeam(player.userData.team) && f.userData.alive);
 
   if (attackType === 'melee') {
     const forward = playerForward();
@@ -605,7 +652,7 @@ function useSecondary() {
   if (now < secondaryReadyAt) return;
   secondaryReadyAt = now + (selectedHero.secondaryCooldown || 6) * 1000;
   const kind = selectedHero.secondaryKind || 'heavyBeam';
-  const enemies = living('red');
+  const enemies = living(opposingTeam(player.userData.team));
 
   if (kind === 'phase') {
     player.userData.shieldUntil = now + 1400;
@@ -749,7 +796,7 @@ function bestCoverPoint(bot, target) {
 
 function updateBots(dt, now) {
   for (const bot of fighters) {
-    if (bot.userData.isPlayer || !bot.userData.alive || matchOver || now < bot.userData.stunnedUntil) continue;
+    if (bot.userData.isPlayer || bot.userData.isRemote || !bot.userData.alive || matchOver || now < bot.userData.stunnedUntil) continue;
     const hero = bot.userData.hero;
     let target = nearestEnemy(bot);
     bot.userData.target = target;
@@ -808,7 +855,7 @@ function updateBots(dt, now) {
 
 function updateRespawns(now) {
   for (const f of fighters) {
-    if (f.userData.alive || now < f.userData.respawnAt || matchOver) continue;
+    if (f.userData.isRemote || f.userData.alive || now < f.userData.respawnAt || matchOver) continue;
     const sameTeam = fighters.filter(x => x.userData.team === f.userData.team);
     resetFighter(f, sameTeam.indexOf(f));
     if (f === player) showBanner('RESPAWNED');
