@@ -51,3 +51,17 @@ Current network milestone supports lobby creation/joining, team assignment, host
 ## Direction
 
 This is the foundation for the larger browser/downloadable hero shooter: human players occupy available slots and bots fill the rest. Networking authority, richer individual hero kits, additional maps/modes, animation/model polish and downloadable packaging are subsequent milestones.
+
+
+## Desktop build
+
+The same production web build can be packaged as a standalone Electron application.
+
+```bash
+npm install
+npm run desktop:dist
+```
+
+Generated packages are written to `release/`.
+
+GitHub Actions also includes a `Desktop Packages` workflow that builds Windows portable, Linux AppImage, and macOS ZIP artifacts from `main`.
