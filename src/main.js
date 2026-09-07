@@ -3,6 +3,7 @@ import './styles.css';
 import { HEROES, getHero } from './heroes.js';
 import { NetworkClient } from './network.js';
 import { loadSettings, saveSettings, resetSettings, keyLabel } from './settings.js';
+import { ARENAS, getArena } from './arenas.js';
 
 const app = document.querySelector('#app');
 const TEAM_SIZE = 6;
@@ -15,6 +16,7 @@ const OBJECTIVE_RADIUS = 6.5;
 
 let selectedHero = HEROES.find(h => h.id === 'superman') || HEROES[0];
 let selectedMode = 'domination';
+let selectedArena = 'nexus';
 let matchStarted = false;
 let matchOver = false;
 let blueScore = 0;
@@ -53,6 +55,7 @@ app.innerHTML = `
         <button class="mode-option selected" data-mode="domination"><strong>DOMINATION</strong><small>Capture and hold the Nexus · First to 100</small></button>
         <button class="mode-option" data-mode="tdm"><strong>TEAM DEATHMATCH</strong><small>Eliminations score · First to 30</small></button>
       </div>
+      <div id="arenaSelect" class="arena-select"></div>
       <div id="roster" class="roster"></div>
       <details class="settings-panel">
         <summary>SETTINGS & KEYBINDS</summary>
@@ -135,6 +138,20 @@ document.querySelector('#resetSettingsBtn').onclick = () => {
   persistSettings();
 };
 renderSettings();
+
+const arenaSelect = document.querySelector('#arenaSelect');
+for (const arena of ARENAS) {
+  const button = document.createElement('button');
+  button.className = 'arena-option' + (arena.id === selectedArena ? ' selected' : '');
+  button.dataset.arena = arena.id;
+  button.innerHTML = `<strong>${arena.name}</strong><small>${arena.subtitle}</small>`;
+  button.onclick = () => {
+    selectedArena = arena.id;
+    document.querySelectorAll('.arena-option').forEach(x => x.classList.toggle('selected', x === button));
+    if (!matchStarted) buildArena(selectedArena);
+  };
+  arenaSelect.appendChild(button);
+}
 
 document.querySelectorAll('.mode-option').forEach(button => {
   button.onclick = () => {
@@ -225,9 +242,11 @@ const ground = new THREE.Mesh(
 ground.rotation.x = -Math.PI / 2;
 ground.receiveShadow = true;
 scene.add(ground);
-scene.add(new THREE.GridHelper(120, 60, 0x94b9e3, 0x566a86));
+const grid = new THREE.GridHelper(120, 60, 0x94b9e3, 0x566a86);
+scene.add(grid);
 
 const collisionBoxes = [];
+const arenaMeshes = [];
 function makeBox(x, z, w, h, d, color = 0x60748e) {
   const mesh = new THREE.Mesh(
     new THREE.BoxGeometry(w, h, d),
@@ -237,26 +256,28 @@ function makeBox(x, z, w, h, d, color = 0x60748e) {
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   scene.add(mesh);
+  arenaMeshes.push(mesh);
   const bounds = new THREE.Box3().setFromObject(mesh);
   collisionBoxes.push(bounds);
   return mesh;
 }
 
-[
-  [-15,-11,10,7,7,0x546985],[14,-12,9,9,7,0x705a73],[-19,9,11,8,6,0x4f7180],
-  [18,10,10,7,8,0x7a5967],[-31,-1,8,12,20,0x52627a],[31,1,8,12,20,0x615a76],
-  [-9,0,4,3,8,0x607aa0],[9,0,4,3,8,0x896276],[0,-30,19,5,5,0x596f8d],[0,30,19,5,5,0x745d78]
-].forEach(v => makeBox(...v));
-
-for (let i = -2; i <= 2; i++) {
-  const tower = makeBox(i * 18, -48, 10, 18 + Math.abs(i) * 5, 8, i % 2 ? 0x657b98 : 0x7087a4);
-  const sign = new THREE.Mesh(
-    new THREE.PlaneGeometry(5.5, 2),
-    new THREE.MeshBasicMaterial({ color: i % 2 ? 0x55aaff : 0xb86cff })
-  );
-  sign.position.set(tower.position.x, tower.position.y + 2, tower.position.z + 4.05);
-  scene.add(sign);
+function buildArena(id) {
+  const arena = getArena(id);
+  selectedArena = arena.id;
+  for (const mesh of arenaMeshes.splice(0)) {
+    scene.remove(mesh);
+    mesh.geometry?.dispose?.();
+    mesh.material?.dispose?.();
+  }
+  collisionBoxes.length = 0;
+  scene.background.setHex(arena.background);
+  scene.fog.color.setHex(arena.fog);
+  ground.material.color.setHex(arena.ground);
+  arena.boxes.forEach(box => makeBox(...box));
 }
+
+buildArena(selectedArena);
 
 const objective = new THREE.Mesh(
   new THREE.CylinderGeometry(5.6, 5.6, 0.35, 48),
