@@ -10,7 +10,7 @@
 - Kill feed and HUD
 - CI build verification
 
-## Milestone B — Hero identity ✅ / in progress
+## Milestone B — Hero identity ✅
 - Data-driven Marvel/DC roster
 - Vanguard, Duelist and Strategist roles
 - Hero-specific primary names
@@ -19,15 +19,15 @@
 - Cooldowns and ultimate charge
 - Role-aware bot behavior
 
-## Milestone C — Alpha feel pass — next
-- Arena/player collision
-- Better hit and projectile VFX
-- Projectile and melee attack types
-- Health bars/nameplates over combatants
-- Damage numbers/hit markers
+## Milestone C — Alpha feel pass — in progress
+- Arena/player collision ✅
+- Better hit and projectile VFX ✅ / expanding
+- Projectile and melee attack types ✅
+- Health bars/nameplates over combatants ✅
+- Damage numbers/hit markers ✅
 - Improved objective presentation
-- Better bot cover/flank navigation
-- Audio pass
+- Better bot cover/flank navigation ✅ / expanding
+- Audio pass ✅ / procedural prototype
 
 ## Milestone D — Two-person private demo
 - Multiplayer session/lobby
@@ -39,7 +39,7 @@
 
 ## Milestone E — Content expansion
 - Full priority roster
-- Individual bespoke hero kits
+- Individual bespoke hero kits ✅ / expanding
 - Team-up abilities
 - Additional arenas
 - Convoy/payload and hybrid modes
