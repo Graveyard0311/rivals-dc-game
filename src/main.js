@@ -26,6 +26,7 @@ let yaw = 0;
 let pitch = -0.12;
 let verticalVelocity = 0;
 let grounded = true;
+let cameraShake = 0;
 let lastShot = 0;
 let abilityReadyAt = 0;
 let secondaryReadyAt = 0;
@@ -514,6 +515,7 @@ function damage(target, amount, attacker, networkApplied = false) {
   if (attacker?.userData.empoweredUntil > now) dealt *= 1.55;
   target.userData.hp -= dealt;
   if (attacker === player) showHitFeedback(dealt);
+  if (target === player) cameraShake = Math.min(1.4, cameraShake + dealt / 180);
   target.userData.body.material.emissive = new THREE.Color(0xffffff);
   setTimeout(() => target.userData?.body?.material?.emissive?.set(0x000000), 65);
 
@@ -1291,6 +1293,12 @@ function updatePlayer(dt, now) {
 
   const camOffset = new THREE.Vector3(0, 3.15, 6.5).applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
   camera.position.lerp(player.position.clone().add(camOffset), 1 - Math.pow(0.001, dt));
+  if (cameraShake > 0.001) {
+    const intensity = cameraShake * (settings.reducedCameraShake ? 0.18 : 1);
+    camera.position.x += (Math.random() - 0.5) * 0.14 * intensity;
+    camera.position.y += (Math.random() - 0.5) * 0.1 * intensity;
+    cameraShake *= Math.pow(0.04, dt);
+  }
   const aim = player.position.clone().add(new THREE.Vector3(0, 1.5, 0)).add(forward.clone().multiplyScalar(10));
   aim.y += Math.tan(pitch) * 10;
   camera.lookAt(aim);
