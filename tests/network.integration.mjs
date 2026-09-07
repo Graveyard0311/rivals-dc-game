@@ -97,13 +97,13 @@ try {
   assert.equal(joinedNotice.players.length, 2);
 
   const matchStartB = nextMessage(b, m => m.type === 'match-start');
-  send(a, 'start-match', { mode: 'tdm', difficulty: 'hard', arena: 'gotham' });
+  send(a, 'start-match', { mode: 'convoy', difficulty: 'hard', arena: 'gotham' });
   const matchStartA = await nextMessage(a, m => m.type === 'match-start');
   const matchStartRemote = await matchStartB;
   assert.equal(matchStartA.players.length, 2);
   assert.equal(matchStartRemote.players.length, 2);
-  assert.equal(matchStartA.mode, 'tdm');
-  assert.equal(matchStartRemote.mode, 'tdm');
+  assert.equal(matchStartA.mode, 'convoy');
+  assert.equal(matchStartRemote.mode, 'convoy');
   assert.equal(matchStartA.difficulty, 'hard');
   assert.equal(matchStartRemote.difficulty, 'hard');
   assert.equal(matchStartA.arena, 'gotham');
@@ -126,8 +126,10 @@ try {
     state: {
       blueScore: 12.5,
       redScore: 7.25,
-      objectiveState: 'ALLIANCE CAPTURING · 2',
+      objectiveState: 'ESCORTING · 32% · 120s',
       matchOver: false,
+      convoyProgress: 32.5,
+      convoyTimeRemaining: 120,
       bots: [{
         slot: 0,
         team: 'blue',
@@ -142,6 +144,8 @@ try {
   const sharedState = await matchStateOnB;
   assert.equal(sharedState.hostId, helloA.playerId);
   assert.equal(sharedState.state.blueScore, 12.5);
+  assert.equal(sharedState.state.convoyProgress, 32.5);
+  assert.equal(sharedState.state.convoyTimeRemaining, 120);
   assert.equal(sharedState.state.bots.length, 1);
 
   const damageOnB = nextMessage(b, m => m.type === 'combat-event' && m.event?.kind === 'damage');
