@@ -48,7 +48,7 @@
 - More bot personalities/difficulty levels
 
 ## Milestone F — Packaging/polish
-- Browser-hosted test URL
+- Browser-hosted test URL ✅ GitHub Pages workflow
 - Downloadable desktop wrapper/build ✅ Electron wrapper + cross-platform packaging workflow
 - Settings and keybinds
 - Performance optimization
