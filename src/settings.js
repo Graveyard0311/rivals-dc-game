@@ -4,6 +4,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   masterVolume: 0.65,
   reducedCameraShake: false,
   showHealthBars: true,
+  graphicsQuality: 'high',
   keybinds: {
     forward: 'KeyW',
     backward: 'KeyS',
@@ -34,6 +35,7 @@ export function loadSettings() {
     masterVolume: validNumber(saved.masterVolume, 0, 1, DEFAULT_SETTINGS.masterVolume),
     reducedCameraShake: Boolean(saved.reducedCameraShake),
     showHealthBars: saved.showHealthBars !== false,
+    graphicsQuality: ['low', 'medium', 'high', 'ultra'].includes(saved.graphicsQuality) ? saved.graphicsQuality : DEFAULT_SETTINGS.graphicsQuality,
     keybinds: {
       ...DEFAULT_SETTINGS.keybinds,
       ...(saved.keybinds || {})
