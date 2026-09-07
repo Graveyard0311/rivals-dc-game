@@ -4,6 +4,7 @@ import { HEROES, getHero } from './heroes.js';
 import { NetworkClient } from './network.js';
 import { loadSettings, saveSettings, resetSettings, keyLabel } from './settings.js';
 import { preferredTeamUp } from './teamups.js';
+import { getBotDifficulty } from './bot-difficulty.js';
 
 const app = document.querySelector('#app');
 const TEAM_SIZE = 6;
@@ -16,6 +17,7 @@ const OBJECTIVE_RADIUS = 6.5;
 
 let selectedHero = HEROES.find(h => h.id === 'superman') || HEROES[0];
 let selectedMode = 'domination';
+let selectedBotDifficulty = 'normal';
 let matchStarted = false;
 let matchOver = false;
 let blueScore = 0;
@@ -55,6 +57,15 @@ app.innerHTML = `
       <div class="mode-select">
         <button class="mode-option selected" data-mode="domination"><strong>DOMINATION</strong><small>Capture and hold the Nexus · First to 100</small></button>
         <button class="mode-option" data-mode="tdm"><strong>TEAM DEATHMATCH</strong><small>Eliminations score · First to 30</small></button>
+      </div>
+      <div class="difficulty-select">
+        <label for="botDifficulty">BOT DIFFICULTY</label>
+        <select id="botDifficulty">
+          <option value="easy">Easy</option>
+          <option value="normal" selected>Normal</option>
+          <option value="hard">Hard</option>
+          <option value="expert">Expert</option>
+        </select>
       </div>
       <div id="roster" class="roster"></div>
       <details class="settings-panel">
@@ -146,6 +157,10 @@ document.querySelectorAll('.mode-option').forEach(button => {
     document.querySelectorAll('.mode-option').forEach(x => x.classList.toggle('selected', x === button));
   };
 });
+
+document.querySelector('#botDifficulty').onchange = e => {
+  selectedBotDifficulty = ['easy', 'normal', 'hard', 'expert'].includes(e.target.value) ? e.target.value : 'normal';
+};
 
 const SETTINGS_BINDINGS = [
   ['forward', 'Move Forward'],
@@ -826,6 +841,7 @@ network.on('host-changed', msg => {
 network.on('match-start', msg => {
   networkPlayers = msg.players || networkPlayers;
   selectedMode = msg.mode === 'tdm' ? 'tdm' : 'domination';
+  selectedBotDifficulty = ['easy', 'normal', 'hard', 'expert'].includes(msg.difficulty) ? msg.difficulty : 'normal';
   if (!matchStarted) startMatch(networkPlayers);
 });
 
@@ -862,7 +878,7 @@ document.querySelector('#joinLobbyBtn').onclick = async () => {
 
 deployBtn.onclick = () => {
   if (!joinedLobby) return startMatch();
-  if (network.playerId === lobbyHostId) network.startMatch(selectedMode);
+  if (network.playerId === lobbyHostId) network.startMatch(selectedMode, selectedBotDifficulty);
   else setNetworkStatus('Waiting for the host to start the match');
 };
 
@@ -1161,6 +1177,7 @@ function showBanner(text, duration = 900) {
 
 function updateBotAbility(bot, now) {
   const hero = bot.userData.hero;
+  const difficulty = getBotDifficulty(selectedBotDifficulty);
   if (now >= bot.userData.abilityReadyAt) {
     let shouldUse = false;
     if (hero.role === 'Strategist') {
@@ -1173,7 +1190,7 @@ function updateBotAbility(bot, now) {
     }
     if (shouldUse) {
       activateAbility(bot, hero.abilityKind, false);
-      bot.userData.abilityReadyAt = now + hero.abilityCooldown * 1000;
+      bot.userData.abilityReadyAt = now + hero.abilityCooldown * difficulty.cooldownMultiplier * 1000;
     }
   }
 
@@ -1181,7 +1198,7 @@ function updateBotAbility(bot, now) {
     const nearbyEnemies = living(bot.userData.team === 'blue' ? 'red' : 'blue').filter(e => e.position.distanceTo(bot.position) < 14).length;
     if (nearbyEnemies >= 2 || hero.role === 'Strategist') {
       activateUltimate(bot, false);
-      bot.userData.ultReadyAt = now + 30000 + Math.random() * 12000;
+      bot.userData.ultReadyAt = now + (30000 + Math.random() * 12000) * difficulty.cooldownMultiplier;
     }
   }
 }
@@ -1212,6 +1229,7 @@ function updateBots(dt, now) {
   for (const bot of fighters) {
     if (bot.userData.isPlayer || bot.userData.isRemote || !bot.userData.alive || matchOver || now < bot.userData.stunnedUntil) continue;
     const hero = bot.userData.hero;
+    const difficulty = getBotDifficulty(selectedBotDifficulty);
     let target = nearestEnemy(bot);
     bot.userData.target = target;
     updateBotAbility(bot, now);
@@ -1245,21 +1263,22 @@ function updateBots(dt, now) {
       let botSpeed = hero.speed * (hero.role === 'Duelist' ? 0.58 : 0.5);
       if (now < bot.userData.slowedUntil) botSpeed *= 0.58;
       if (now < bot.userData.hasteUntil) botSpeed *= 1.28;
-      moveWithCollision(bot, desired.normalize().multiplyScalar(botSpeed * dt));
+      moveWithCollision(bot, desired.normalize().multiplyScalar(botSpeed * difficulty.speedMultiplier * dt));
     }
 
     if (target) {
       const dist = bot.position.distanceTo(target.position);
       if (dist <= hero.range && now - bot.userData.lastAttack >= hero.fireRate * 1000) {
         bot.userData.lastAttack = now;
-        const accuracy = hero.role === 'Duelist' ? 0.68 : hero.role === 'Strategist' ? 0.55 : 0.61;
+        const baseAccuracy = hero.role === 'Duelist' ? 0.68 : hero.role === 'Strategist' ? 0.55 : 0.61;
+        const accuracy = THREE.MathUtils.clamp(baseAccuracy + difficulty.accuracyModifier, 0.15, 0.95);
         if (Math.random() < accuracy) {
           if (hero.attackType === 'projectile') {
             const dir = target.position.clone().add(new THREE.Vector3(0, 1.2, 0))
               .sub(bot.position.clone().add(new THREE.Vector3(0, 1.2, 0))).normalize();
-            spawnProjectile(bot, dir, hero.damage * 0.52, hero.projectileSpeed || 25);
+            spawnProjectile(bot, dir, hero.damage * 0.52 * difficulty.damageMultiplier, hero.projectileSpeed || 25);
           } else {
-            damage(target, hero.damage * 0.52, bot);
+            damage(target, hero.damage * 0.52 * difficulty.damageMultiplier, bot);
           }
         }
       }

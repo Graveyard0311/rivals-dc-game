@@ -124,7 +124,8 @@ wss.on('connection', ws => {
     if (msg.type === 'start-match') {
       if (lobby.hostId !== ws.meta.id) return;
       const mode = msg.mode === 'tdm' ? 'tdm' : 'domination';
-      broadcast(lobby, { type: 'match-start', mode, seed: crypto.randomInt(0, 2 ** 31 - 1), players: snapshot(lobby) });
+      const difficulty = ['easy', 'normal', 'hard', 'expert'].includes(msg.difficulty) ? msg.difficulty : 'normal';
+      broadcast(lobby, { type: 'match-start', mode, difficulty, seed: crypto.randomInt(0, 2 ** 31 - 1), players: snapshot(lobby) });
       return;
     }
 
