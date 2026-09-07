@@ -33,3 +33,14 @@ Open the Vite URL in a desktop browser.
 - Primary attacks are mostly hitscan placeholders.
 - Audio, settings, scoreboard detail and replay systems are not complete.
 - Two-human networking is not yet wired into the browser demo.
+
+
+## Team Deathmatch test
+
+1. Start the game and select **TEAM DEATHMATCH** before deploying.
+2. Confirm the central capture objective is hidden.
+3. Confirm eliminations increase the correct team score.
+4. Confirm the first team to 30 eliminations wins.
+5. In a two-client lobby, have the host select Team Deathmatch and start the match.
+6. Confirm both clients enter Team Deathmatch and display the same team scores.
+7. Confirm human-vs-human and human-vs-bot eliminations update the shared score once, without duplicate scoring.
