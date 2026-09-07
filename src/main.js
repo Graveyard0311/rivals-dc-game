@@ -3,12 +3,12 @@ import './styles.css';
 import { HEROES, getHero } from './heroes.js';
 
 const app = document.querySelector('#app');
-
 const TEAM_SIZE = 6;
 const SCORE_TO_WIN = 100;
 const RESPAWN_SECONDS = 5;
-const BLUE_SPAWN = new THREE.Vector3(0, 0, 24);
-const RED_SPAWN = new THREE.Vector3(0, 0, -24);
+const BLUE_SPAWN = new THREE.Vector3(0, 0, 28);
+const RED_SPAWN = new THREE.Vector3(0, 0, -28);
+const OBJECTIVE_RADIUS = 6.5;
 
 let selectedHero = HEROES.find(h => h.id === 'superman') || HEROES[0];
 let matchStarted = false;
@@ -25,25 +25,26 @@ let grounded = true;
 let lastShot = 0;
 let abilityReadyAt = 0;
 let ultimateCharge = 0;
+let objectiveState = 'NEUTRAL';
 
 app.innerHTML = `
   <div id="heroSelect" class="hero-select">
     <div class="select-card">
-      <div class="eyebrow">PRIVATE DEMO BUILD</div>
+      <div class="eyebrow">PRIVATE DEMO BUILD · NEXUS ARENA</div>
       <h1>RIVALS: COLLISION</h1>
-      <p>Choose your hero. One human player enters a 6v6 match; bots fill every remaining slot.</p>
+      <p>Choose your hero. You enter a full 6v6 objective match and bots fill every open slot.</p>
       <div id="roster" class="roster"></div>
-      <button id="deployBtn" class="deploy">DEPLOY</button>
+      <button id="deployBtn" class="deploy">DEPLOY TO BATTLE</button>
     </div>
   </div>
   <div id="hud" class="hud hidden">
     <div class="topbar">
       <span id="blueScore" class="team blue">ALLIANCE 0</span>
-      <span class="objective">CAPTURE THE NEXUS</span>
+      <span id="objectiveState" class="objective">CAPTURE THE NEXUS</span>
       <span id="redScore" class="team red">LEGION 0</span>
     </div>
     <div class="crosshair"></div>
-    <div class="instructions">WASD move · Mouse aim · LMB attack · Shift ability · Q ultimate · Space jump</div>
+    <div class="instructions">WASD move · Mouse aim · LMB primary · Shift ability · Q ultimate · Space jump</div>
     <div class="hero">
       <div id="heroName" class="hero-name"></div>
       <div id="heroRole" class="role"></div>
@@ -52,8 +53,8 @@ app.innerHTML = `
       <div class="stats">K <span id="kills">0</span> · D <span id="deaths">0</span></div>
     </div>
     <div class="abilities">
-      <div class="ability"><div class="key">LMB</div><div class="label">Primary</div></div>
-      <div class="ability"><div class="key">⇧</div><div id="abilityLabel" class="label"></div></div>
+      <div class="ability"><div class="key">LMB</div><div id="primaryLabel" class="label"></div></div>
+      <div class="ability"><div class="key">⇧</div><div id="abilityLabel" class="label"></div><div id="abilityCd" class="charge">READY</div></div>
       <div class="ability"><div class="key">Q</div><div id="ultLabel" class="label"></div><div id="ultCharge" class="charge">0%</div></div>
     </div>
     <div id="banner" class="banner"></div>
@@ -66,7 +67,7 @@ for (const hero of HEROES) {
   const b = document.createElement('button');
   b.className = 'hero-option' + (hero.id === selectedHero.id ? ' selected' : '');
   b.dataset.hero = hero.id;
-  b.innerHTML = `<span class="universe">${hero.universe}</span><strong>${hero.name}</strong><small>${hero.role}</small>`;
+  b.innerHTML = `<span class="universe">${hero.universe}</span><strong>${hero.name}</strong><small>${hero.role} · ${hero.primary}</small>`;
   b.onclick = () => {
     selectedHero = getHero(hero.id);
     [...rosterEl.children].forEach(x => x.classList.toggle('selected', x.dataset.hero === hero.id));
@@ -75,68 +76,88 @@ for (const hero of HEROES) {
 }
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x070a14);
-scene.fog = new THREE.FogExp2(0x070a14, 0.014);
-
+scene.background = new THREE.Color(0x9bc4e8);
+scene.fog = new THREE.Fog(0x9bc4e8, 45, 115);
 const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 500);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 app.prepend(renderer.domElement);
 
-scene.add(new THREE.HemisphereLight(0x879dff, 0x271a35, 2.2));
-const sun = new THREE.DirectionalLight(0xffffff, 3);
-sun.position.set(18, 28, 10);
+scene.add(new THREE.HemisphereLight(0xdbeeff, 0x29334b, 3.0));
+const sun = new THREE.DirectionalLight(0xfff1d8, 3.6);
+sun.position.set(28, 42, 18);
 sun.castShadow = true;
 scene.add(sun);
 
 const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(110, 110),
-  new THREE.MeshStandardMaterial({ color: 0x171b29, roughness: 0.9, metalness: 0.1 })
+  new THREE.PlaneGeometry(120, 120),
+  new THREE.MeshStandardMaterial({ color: 0x465974, roughness: 0.82, metalness: 0.18 })
 );
 ground.rotation.x = -Math.PI / 2;
 ground.receiveShadow = true;
 scene.add(ground);
-scene.add(new THREE.GridHelper(110, 55, 0x4f67a8, 0x242b44));
+scene.add(new THREE.GridHelper(120, 60, 0x94b9e3, 0x566a86));
 
-function makeBox(x, z, w, h, d, color = 0x2b3248) {
+function makeBox(x, z, w, h, d, color = 0x60748e) {
   const mesh = new THREE.Mesh(
     new THREE.BoxGeometry(w, h, d),
-    new THREE.MeshStandardMaterial({ color, roughness: 0.7, metalness: 0.2 })
+    new THREE.MeshStandardMaterial({ color, roughness: 0.58, metalness: 0.24 })
   );
   mesh.position.set(x, h / 2, z);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   scene.add(mesh);
+  return mesh;
 }
+
 [
-  [-14,-10,9,6,6,0x27334f],[13,-11,8,8,7,0x352c4b],[-18,8,11,7,6,0x293d49],
-  [17,9,9,6,8,0x4a2c39],[-30,-1,7,11,18,0x252b3b],[30,1,7,11,18,0x2c263c],
-  [-8,0,4,3,7,0x303a56],[8,0,4,3,7,0x4a3040],[0,-27,18,4,4,0x29344e],[0,27,18,4,4,0x3d2c3e]
+  [-15,-11,10,7,7,0x546985],[14,-12,9,9,7,0x705a73],[-19,9,11,8,6,0x4f7180],
+  [18,10,10,7,8,0x7a5967],[-31,-1,8,12,20,0x52627a],[31,1,8,12,20,0x615a76],
+  [-9,0,4,3,8,0x607aa0],[9,0,4,3,8,0x896276],[0,-30,19,5,5,0x596f8d],[0,30,19,5,5,0x745d78]
 ].forEach(v => makeBox(...v));
 
+for (let i = -2; i <= 2; i++) {
+  const tower = makeBox(i * 18, -48, 10, 18 + Math.abs(i) * 5, 8, i % 2 ? 0x657b98 : 0x7087a4);
+  const sign = new THREE.Mesh(
+    new THREE.PlaneGeometry(5.5, 2),
+    new THREE.MeshBasicMaterial({ color: i % 2 ? 0x55aaff : 0xb86cff })
+  );
+  sign.position.set(tower.position.x, tower.position.y + 2, tower.position.z + 4.05);
+  scene.add(sign);
+}
+
 const objective = new THREE.Mesh(
-  new THREE.CylinderGeometry(5.5, 5.5, 0.35, 48),
-  new THREE.MeshStandardMaterial({ color: 0x775cff, emissive: 0x3824b8, emissiveIntensity: 2, transparent: true, opacity: 0.75 })
+  new THREE.CylinderGeometry(5.6, 5.6, 0.35, 48),
+  new THREE.MeshStandardMaterial({ color: 0x6d68ff, emissive: 0x3830d5, emissiveIntensity: 2.4, transparent: true, opacity: 0.78 })
 );
 objective.position.y = 0.2;
 scene.add(objective);
 const objectiveRing = new THREE.Mesh(
-  new THREE.TorusGeometry(6.2, 0.13, 12, 64),
-  new THREE.MeshBasicMaterial({ color: 0x9bbcff })
+  new THREE.TorusGeometry(6.25, 0.14, 12, 64),
+  new THREE.MeshBasicMaterial({ color: 0xe9f4ff })
 );
 objectiveRing.rotation.x = Math.PI / 2;
-objectiveRing.position.y = 0.42;
+objectiveRing.position.y = 0.43;
 scene.add(objectiveRing);
+
+const effects = [];
+function pulseEffect(position, color, radius = 3, duration = 0.45) {
+  const mesh = new THREE.Mesh(
+    new THREE.RingGeometry(0.5, 0.7, 40),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, side: THREE.DoubleSide })
+  );
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.position.copy(position).add(new THREE.Vector3(0, 0.08, 0));
+  scene.add(mesh);
+  effects.push({ mesh, age: 0, duration, radius });
+}
 
 function makeFighter(hero, team, isPlayer = false) {
   const g = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({
-    color: hero.color,
-    roughness: 0.38,
-    metalness: 0.35
-  });
+  const mat = new THREE.MeshStandardMaterial({ color: hero.color, roughness: 0.35, metalness: 0.38 });
   const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.58, 1.05, 5, 10), mat);
   body.position.y = 1.18;
   body.castShadow = true;
@@ -144,14 +165,16 @@ function makeFighter(hero, team, isPlayer = false) {
 
   const marker = new THREE.Mesh(
     new THREE.SphereGeometry(0.13, 10, 10),
-    new THREE.MeshBasicMaterial({ color: team === 'blue' ? 0x75c8ff : 0xff6b7e })
+    new THREE.MeshBasicMaterial({ color: team === 'blue' ? 0x70c8ff : 0xff667c })
   );
   marker.position.set(0, 2.15, 0);
   g.add(marker);
 
   g.userData = {
-    hero, team, body, hp: hero.hp, maxHp: hero.hp, alive: true,
-    isPlayer, respawnAt: 0, lastAttack: 0, target: null
+    hero, team, body, hp: hero.hp, maxHp: hero.hp, alive: true, isPlayer,
+    respawnAt: 0, lastAttack: 0, target: null, abilityReadyAt: 0,
+    ultReadyAt: 18000 + Math.random() * 9000, shieldUntil: 0,
+    stunnedUntil: 0, empoweredUntil: 0
   };
   scene.add(g);
   return g;
@@ -164,16 +187,18 @@ const raycaster = new THREE.Raycaster();
 
 function spawnPosition(team, index = 0) {
   const base = team === 'blue' ? BLUE_SPAWN : RED_SPAWN;
-  return base.clone().add(new THREE.Vector3((index % 3 - 1) * 2.3, 0, Math.floor(index / 3) * (team === 'blue' ? 2 : -2)));
+  return base.clone().add(new THREE.Vector3((index % 3 - 1) * 2.4, 0, Math.floor(index / 3) * (team === 'blue' ? 2.2 : -2.2)));
 }
 
 function resetFighter(f, index = 0) {
-  const p = spawnPosition(f.userData.team, index);
-  f.position.copy(p);
+  f.position.copy(spawnPosition(f.userData.team, index));
   f.userData.hp = f.userData.maxHp;
   f.userData.alive = true;
   f.visible = true;
   f.userData.target = null;
+  f.userData.shieldUntil = 0;
+  f.userData.stunnedUntil = 0;
+  f.userData.empoweredUntil = 0;
 }
 
 function addKillFeed(text) {
@@ -185,24 +210,32 @@ function addKillFeed(text) {
   setTimeout(() => item.remove(), 5000);
 }
 
+function heal(target, amount) {
+  if (!target?.userData.alive) return;
+  target.userData.hp = Math.min(target.userData.maxHp, target.userData.hp + amount);
+  pulseEffect(target.position, 0x72ffbf, 2.5, 0.35);
+}
+
 function damage(target, amount, attacker) {
   if (!target?.userData.alive || matchOver) return;
-  target.userData.hp -= amount;
+  const now = performance.now();
+  let dealt = amount;
+  if (target.userData.shieldUntil > now) dealt *= 0.42;
+  if (attacker?.userData.empoweredUntil > now) dealt *= 1.55;
+  target.userData.hp -= dealt;
   target.userData.body.material.emissive = new THREE.Color(0xffffff);
-  setTimeout(() => {
-    if (target.userData?.body) target.userData.body.material.emissive.set(0x000000);
-  }, 60);
+  setTimeout(() => target.userData?.body?.material?.emissive?.set(0x000000), 65);
 
   if (target.userData.hp <= 0) {
     target.userData.hp = 0;
     target.userData.alive = false;
     target.visible = false;
-    target.userData.respawnAt = performance.now() + RESPAWN_SECONDS * 1000;
+    target.userData.respawnAt = now + RESPAWN_SECONDS * 1000;
     const killerName = attacker?.userData.hero.name || 'Nexus';
     addKillFeed(`${killerName} eliminated ${target.userData.hero.name}`);
     if (attacker === player) {
       playerKills++;
-      ultimateCharge = Math.min(100, ultimateCharge + 28);
+      ultimateCharge = Math.min(100, ultimateCharge + 24);
     }
     if (target === player) {
       playerDeaths++;
@@ -226,18 +259,33 @@ function nearestEnemy(f) {
   return best;
 }
 
+function lowestAlly(f) {
+  return living(f.userData.team)
+    .filter(x => x !== f)
+    .sort((a, b) => (a.userData.hp / a.userData.maxHp) - (b.userData.hp / b.userData.maxHp))[0] || null;
+}
+
+function teamFor(team) {
+  return fighters.filter(f => f.userData.team === team && f.userData.alive);
+}
+
 function startMatch() {
   if (matchStarted) return;
   matchStarted = true;
-  blueScore = 0; redScore = 0; matchOver = false;
-  playerKills = 0; playerDeaths = 0; ultimateCharge = 0;
+  matchOver = false;
+  blueScore = 0;
+  redScore = 0;
+  playerKills = 0;
+  playerDeaths = 0;
+  ultimateCharge = 0;
   document.querySelector('#heroSelect').classList.add('hidden');
   document.querySelector('#hud').classList.remove('hidden');
 
   player = makeFighter(selectedHero, 'blue', true);
   fighters.push(player);
-  for (let i = 1; i < TEAM_SIZE; i++) fighters.push(makeFighter(HEROES[(i + 1) % HEROES.length], 'blue'));
-  for (let i = 0; i < TEAM_SIZE; i++) fighters.push(makeFighter(HEROES[(i + 7) % HEROES.length], 'red'));
+  const bluePool = HEROES.filter(h => h.id !== selectedHero.id);
+  for (let i = 1; i < TEAM_SIZE; i++) fighters.push(makeFighter(bluePool[(i - 1) % bluePool.length], 'blue'));
+  for (let i = 0; i < TEAM_SIZE; i++) fighters.push(makeFighter(HEROES[(i + 6) % HEROES.length], 'red'));
 
   fighters.filter(f => f.userData.team === 'blue').forEach((f, i) => resetFighter(f, i));
   fighters.filter(f => f.userData.team === 'red').forEach((f, i) => resetFighter(f, i));
@@ -250,6 +298,7 @@ function applyHudHero() {
   document.querySelector('#heroName').textContent = h.name;
   document.querySelector('#heroRole').textContent = `${h.universe} · ${h.role}`;
   document.querySelector('#maxHp').textContent = h.hp;
+  document.querySelector('#primaryLabel').textContent = h.primary;
   document.querySelector('#abilityLabel').textContent = h.ability;
   document.querySelector('#ultLabel').textContent = h.ultimate;
 }
@@ -258,6 +307,7 @@ document.querySelector('#deployBtn').onclick = startMatch;
 
 addEventListener('keydown', e => {
   keys[e.code] = true;
+  if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') usePlayerAbility();
   if (e.code === 'KeyQ') useUltimate();
 });
 addEventListener('keyup', e => keys[e.code] = false);
@@ -267,37 +317,104 @@ addEventListener('mousemove', e => {
     pitch = Math.max(-0.75, Math.min(0.35, pitch - e.movementY * 0.0018));
   }
 });
-renderer.domElement.addEventListener('click', () => {
-  if (matchStarted) renderer.domElement.requestPointerLock();
-});
-addEventListener('mousedown', e => {
-  if (e.button === 0 && matchStarted) playerShoot();
-});
+renderer.domElement.addEventListener('click', () => matchStarted && renderer.domElement.requestPointerLock());
+addEventListener('mousedown', e => e.button === 0 && matchStarted && playerShoot());
+
+function playerForward() {
+  return new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+}
 
 function playerShoot() {
-  if (!player?.userData.alive) return;
+  if (!player?.userData.alive || performance.now() < player.userData.stunnedUntil) return;
   const now = performance.now();
   if (now - lastShot < selectedHero.fireRate * 1000) return;
   lastShot = now;
   raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
   const targets = fighters.filter(f => f.userData.team === 'red' && f.userData.alive).map(f => f.userData.body);
   const hits = raycaster.intersectObjects(targets);
-  if (hits.length) {
-    const body = hits[0].object;
-    const target = fighters.find(f => f.userData.body === body);
-    if (target && player.position.distanceTo(target.position) <= selectedHero.range + 5) {
-      damage(target, selectedHero.damage, player);
-      ultimateCharge = Math.min(100, ultimateCharge + 4);
-    }
+  if (!hits.length) return;
+  const target = fighters.find(f => f.userData.body === hits[0].object);
+  if (target && player.position.distanceTo(target.position) <= selectedHero.range + 4) {
+    damage(target, selectedHero.damage, player);
+    ultimateCharge = Math.min(100, ultimateCharge + 4.5);
+    pulseEffect(target.position, selectedHero.color, 1.5, 0.22);
   }
+}
+
+function activateAbility(actor, kind, isHuman = false) {
+  const hero = actor.userData.hero;
+  const now = performance.now();
+  const enemyTeam = actor.userData.team === 'blue' ? 'red' : 'blue';
+  const allies = teamFor(actor.userData.team);
+  const enemies = teamFor(enemyTeam);
+
+  if (kind === 'dash' || kind === 'blink') {
+    let dir;
+    if (isHuman) dir = playerForward();
+    else if (actor.userData.target) dir = actor.userData.target.position.clone().sub(actor.position).setY(0).normalize();
+    else dir = new THREE.Vector3(0, 0, actor.userData.team === 'blue' ? -1 : 1);
+    actor.position.addScaledVector(dir, kind === 'blink' ? 8.5 : 6.5);
+    pulseEffect(actor.position, hero.color, 3.2, 0.3);
+  }
+  if (kind === 'shield') {
+    actor.userData.shieldUntil = now + 3200;
+    pulseEffect(actor.position, 0x8bd7ff, 4, 0.5);
+  }
+  if (kind === 'teamShield') {
+    allies.filter(a => a.position.distanceTo(actor.position) < 11).forEach(a => a.userData.shieldUntil = now + 3000);
+    pulseEffect(actor.position, 0x70e8ff, 7, 0.6);
+  }
+  if (kind === 'heal') {
+    allies.filter(a => a.position.distanceTo(actor.position) < 12).forEach(a => heal(a, a.userData.maxHp * 0.22));
+    pulseEffect(actor.position, 0x6dffb3, 7, 0.6);
+  }
+  if (kind === 'burst') {
+    enemies.filter(e => e.position.distanceTo(actor.position) < 10).forEach(e => damage(e, hero.damage * 1.4, actor));
+    pulseEffect(actor.position, 0xd18cff, 8, 0.5);
+  }
+}
+
+function usePlayerAbility() {
+  if (!player?.userData.alive) return;
+  const now = performance.now();
+  if (now < abilityReadyAt) return;
+  abilityReadyAt = now + selectedHero.abilityCooldown * 1000;
+  activateAbility(player, selectedHero.abilityKind, true);
+  showBanner(selectedHero.ability.toUpperCase(), 650);
+}
+
+function activateUltimate(actor, isHuman = false) {
+  const hero = actor.userData.hero;
+  const now = performance.now();
+  const enemyTeam = actor.userData.team === 'blue' ? 'red' : 'blue';
+  const allies = teamFor(actor.userData.team);
+  const enemies = teamFor(enemyTeam);
+
+  if (hero.ultKind === 'slam') {
+    enemies.filter(e => e.position.distanceTo(actor.position) < 13).forEach(e => damage(e, Math.max(115, hero.damage * 3.2), actor));
+    pulseEffect(actor.position, hero.color, 13, 0.8);
+  }
+  if (hero.ultKind === 'empower') {
+    actor.userData.empoweredUntil = now + 8500;
+    actor.userData.shieldUntil = now + 4000;
+    pulseEffect(actor.position, hero.color, 8, 0.8);
+  }
+  if (hero.ultKind === 'stun') {
+    enemies.filter(e => e.position.distanceTo(actor.position) < 14).forEach(e => e.userData.stunnedUntil = now + 3500);
+    pulseEffect(actor.position, 0xb98cff, 14, 0.8);
+  }
+  if (hero.ultKind === 'teamHeal') {
+    allies.forEach(a => heal(a, a.userData.maxHp * 0.42));
+    allies.forEach(a => a.userData.shieldUntil = now + 2500);
+    pulseEffect(actor.position, 0x6effc2, 15, 0.9);
+  }
+  if (isHuman) showBanner(hero.ultimate.toUpperCase(), 1400);
 }
 
 function useUltimate() {
   if (!player?.userData.alive || ultimateCharge < 100) return;
   ultimateCharge = 0;
-  const enemies = fighters.filter(f => f.userData.team === 'red' && f.userData.alive && f.position.distanceTo(player.position) < 12);
-  enemies.forEach(e => damage(e, Math.max(90, selectedHero.damage * 3), player));
-  showBanner(selectedHero.ultimate.toUpperCase(), 1200);
+  activateUltimate(player, true);
 }
 
 function showBanner(text, duration = 900) {
@@ -308,74 +425,129 @@ function showBanner(text, duration = 900) {
   showBanner.t = setTimeout(() => b.classList.remove('show'), duration);
 }
 
+function updateBotAbility(bot, now) {
+  const hero = bot.userData.hero;
+  if (now >= bot.userData.abilityReadyAt) {
+    let shouldUse = false;
+    if (hero.role === 'Strategist') {
+      const low = lowestAlly(bot);
+      shouldUse = !!low && low.userData.hp / low.userData.maxHp < 0.62 && low.position.distanceTo(bot.position) < 14;
+    } else if (hero.role === 'Vanguard') {
+      shouldUse = bot.userData.hp / bot.userData.maxHp < 0.62 || Math.hypot(bot.position.x, bot.position.z) < 8;
+    } else {
+      shouldUse = !!bot.userData.target && bot.position.distanceTo(bot.userData.target.position) < Math.max(10, hero.range);
+    }
+    if (shouldUse) {
+      activateAbility(bot, hero.abilityKind, false);
+      bot.userData.abilityReadyAt = now + hero.abilityCooldown * 1000;
+    }
+  }
+
+  if (now >= bot.userData.ultReadyAt) {
+    const nearbyEnemies = living(bot.userData.team === 'blue' ? 'red' : 'blue').filter(e => e.position.distanceTo(bot.position) < 14).length;
+    if (nearbyEnemies >= 2 || hero.role === 'Strategist') {
+      activateUltimate(bot, false);
+      bot.userData.ultReadyAt = now + 30000 + Math.random() * 12000;
+    }
+  }
+}
+
 function updateBots(dt, now) {
   for (const bot of fighters) {
-    if (bot.userData.isPlayer || !bot.userData.alive || matchOver) continue;
-
-    const target = nearestEnemy(bot);
-    if (!target) continue;
-    bot.userData.target = target;
-
-    const toTarget = target.position.clone().sub(bot.position);
-    toTarget.y = 0;
-    const dist = toTarget.length();
-    const toPoint = new THREE.Vector3(0, 0, 0).sub(bot.position);
-    toPoint.y = 0;
+    if (bot.userData.isPlayer || !bot.userData.alive || matchOver || now < bot.userData.stunnedUntil) continue;
     const hero = bot.userData.hero;
+    let target = nearestEnemy(bot);
+    bot.userData.target = target;
+    updateBotAbility(bot, now);
 
-    let moveDir;
-    if (dist < hero.range * 0.85) {
-      moveDir = toTarget.clone().multiplyScalar(-0.25).add(toPoint.normalize().multiplyScalar(0.45));
-    } else if (dist < 18) {
-      moveDir = toTarget;
-    } else {
-      moveDir = toPoint;
+    const point = new THREE.Vector3(0, 0, 0);
+    let desired = point.clone().sub(bot.position);
+
+    if (hero.role === 'Strategist') {
+      const low = lowestAlly(bot);
+      if (low && low.userData.hp / low.userData.maxHp < 0.72) desired = low.position.clone().sub(bot.position);
+      else desired.multiplyScalar(0.75);
+    } else if (hero.role === 'Duelist' && target) {
+      const side = new THREE.Vector3(-(target.position.z - bot.position.z), 0, target.position.x - bot.position.x).normalize();
+      desired = target.position.clone().sub(bot.position).addScaledVector(side, bot.userData.team === 'blue' ? 4 : -4);
+    } else if (target && bot.position.distanceTo(target.position) < 14) {
+      desired = target.position.clone().sub(bot.position);
     }
-    if (moveDir.lengthSq() > 0.01) bot.position.addScaledVector(moveDir.normalize(), hero.speed * 0.48 * dt);
-    bot.lookAt(target.position.x, bot.position.y, target.position.z);
 
-    if (dist <= hero.range && now - bot.userData.lastAttack >= hero.fireRate * 1000) {
-      bot.userData.lastAttack = now;
-      const accuracy = 0.54 + Math.min(0.25, (hero.range - dist) / Math.max(hero.range, 1) * 0.3);
-      if (Math.random() < accuracy) damage(target, hero.damage * 0.55, bot);
+    if (target) {
+      const dist = bot.position.distanceTo(target.position);
+      const preferred = hero.role === 'Vanguard' ? Math.min(hero.range * 0.75, 6) : hero.role === 'Strategist' ? Math.max(hero.range * 0.75, 13) : Math.max(hero.range * 0.7, 7);
+      if (dist < preferred) desired.add(target.position.clone().sub(bot.position).normalize().multiplyScalar(-5));
+      bot.lookAt(target.position.x, bot.position.y, target.position.z);
+    }
+
+    if (desired.lengthSq() > 0.04) bot.position.addScaledVector(desired.normalize(), hero.speed * (hero.role === 'Duelist' ? 0.58 : 0.5) * dt);
+
+    if (target) {
+      const dist = bot.position.distanceTo(target.position);
+      if (dist <= hero.range && now - bot.userData.lastAttack >= hero.fireRate * 1000) {
+        bot.userData.lastAttack = now;
+        const accuracy = hero.role === 'Duelist' ? 0.68 : hero.role === 'Strategist' ? 0.55 : 0.61;
+        if (Math.random() < accuracy) damage(target, hero.damage * 0.52, bot);
+      }
     }
   }
 }
 
 function updateRespawns(now) {
-  const teams = { blue: 0, red: 0 };
   for (const f of fighters) {
-    if (f.userData.alive) { teams[f.userData.team]++; continue; }
-    if (now >= f.userData.respawnAt && !matchOver) {
-      const sameTeam = fighters.filter(x => x.userData.team === f.userData.team);
-      resetFighter(f, sameTeam.indexOf(f));
-      if (f === player) showBanner('RESPAWNED');
-    }
+    if (f.userData.alive || now < f.userData.respawnAt || matchOver) continue;
+    const sameTeam = fighters.filter(x => x.userData.team === f.userData.team);
+    resetFighter(f, sameTeam.indexOf(f));
+    if (f === player) showBanner('RESPAWNED');
   }
-  return teams;
 }
 
 function updateObjective(dt) {
-  const radius = 6.4;
-  const blueOn = living('blue').filter(f => Math.hypot(f.position.x, f.position.z) < radius).length;
-  const redOn = living('red').filter(f => Math.hypot(f.position.x, f.position.z) < radius).length;
+  const blueOn = living('blue').filter(f => Math.hypot(f.position.x, f.position.z) < OBJECTIVE_RADIUS).length;
+  const redOn = living('red').filter(f => Math.hypot(f.position.x, f.position.z) < OBJECTIVE_RADIUS).length;
 
-  if (blueOn > redOn) blueScore = Math.min(SCORE_TO_WIN, blueScore + dt * (2.3 + blueOn * 0.25));
-  if (redOn > blueOn) redScore = Math.min(SCORE_TO_WIN, redScore + dt * (2.3 + redOn * 0.25));
+  if (blueOn > redOn) {
+    blueScore = Math.min(SCORE_TO_WIN, blueScore + dt * (2.25 + blueOn * 0.3));
+    objectiveState = `ALLIANCE CAPTURING · ${blueOn}`;
+    objective.material.color.set(0x3c9dff);
+    objective.material.emissive.set(0x1676d2);
+  } else if (redOn > blueOn) {
+    redScore = Math.min(SCORE_TO_WIN, redScore + dt * (2.25 + redOn * 0.3));
+    objectiveState = `LEGION CAPTURING · ${redOn}`;
+    objective.material.color.set(0xff536d);
+    objective.material.emissive.set(0xb9213d);
+  } else if (blueOn && redOn) {
+    objectiveState = 'CONTESTED';
+    objective.material.color.set(0xa070ff);
+    objective.material.emissive.set(0x6237c8);
+  } else {
+    objectiveState = 'CAPTURE THE NEXUS';
+    objective.material.color.set(0x6d68ff);
+    objective.material.emissive.set(0x3830d5);
+  }
 
   document.querySelector('#blueScore').textContent = `ALLIANCE ${Math.floor(blueScore)}`;
   document.querySelector('#redScore').textContent = `LEGION ${Math.floor(redScore)}`;
+  document.querySelector('#objectiveState').textContent = objectiveState;
 
   if (!matchOver && (blueScore >= SCORE_TO_WIN || redScore >= SCORE_TO_WIN)) {
+    const winningBlue = blueScore >= SCORE_TO_WIN;
+    const contested = blueOn > 0 && redOn > 0;
+    if (contested) {
+      document.querySelector('#objectiveState').textContent = 'OVERTIME · CONTESTED';
+      if (winningBlue) blueScore = 99.8; else redScore = 99.8;
+      return;
+    }
     matchOver = true;
-    showBanner(blueScore >= SCORE_TO_WIN ? 'ALLIANCE VICTORY' : 'LEGION VICTORY', 5000);
+    showBanner(winningBlue ? 'ALLIANCE VICTORY' : 'LEGION VICTORY', 5000);
     setTimeout(() => location.reload(), 5200);
   }
 }
 
-function updatePlayer(dt) {
-  if (!player?.userData.alive || matchOver) return;
-  const forward = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+function updatePlayer(dt, now) {
+  if (!player?.userData.alive || matchOver || now < player.userData.stunnedUntil) return;
+  const forward = playerForward();
   const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
   const move = new THREE.Vector3();
   if (keys.KeyW) move.add(forward);
@@ -384,13 +556,8 @@ function updatePlayer(dt) {
   if (keys.KeyA) move.sub(right);
   if (move.lengthSq()) move.normalize();
 
-  let speed = selectedHero.speed;
-  const now = performance.now();
-  if ((keys.ShiftLeft || keys.ShiftRight) && now >= abilityReadyAt && move.lengthSq()) {
-    speed *= 3.1;
-    abilityReadyAt = now + 4500;
-  }
-  player.position.addScaledVector(move, speed * dt);
+  const speedBoost = player.userData.empoweredUntil > now ? 1.22 : 1;
+  player.position.addScaledVector(move, selectedHero.speed * speedBoost * dt);
 
   if (keys.Space && grounded) { verticalVelocity = 8; grounded = false; }
   verticalVelocity -= 20 * dt;
@@ -402,14 +569,29 @@ function updatePlayer(dt) {
   }
   player.rotation.y = yaw;
 
-  const camOffset = new THREE.Vector3(0, 3.2, 6.4).applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+  const camOffset = new THREE.Vector3(0, 3.15, 6.5).applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
   camera.position.lerp(player.position.clone().add(camOffset), 1 - Math.pow(0.001, dt));
   const aim = player.position.clone().add(new THREE.Vector3(0, 1.5, 0)).add(forward.clone().multiplyScalar(10));
   aim.y += Math.tan(pitch) * 10;
   camera.lookAt(aim);
 }
 
-function updateHud() {
+function updateEffects(dt) {
+  for (let i = effects.length - 1; i >= 0; i--) {
+    const fx = effects[i];
+    fx.age += dt;
+    const t = Math.min(1, fx.age / fx.duration);
+    const scale = 1 + t * fx.radius;
+    fx.mesh.scale.setScalar(scale);
+    fx.mesh.material.opacity = 0.9 * (1 - t);
+    if (t >= 1) {
+      scene.remove(fx.mesh);
+      effects.splice(i, 1);
+    }
+  }
+}
+
+function updateHud(now) {
   if (!player) return;
   const hp = Math.max(0, Math.ceil(player.userData.hp));
   document.querySelector('#hp').textContent = hp;
@@ -417,10 +599,14 @@ function updateHud() {
   document.querySelector('#kills').textContent = playerKills;
   document.querySelector('#deaths').textContent = playerDeaths;
   document.querySelector('#ultCharge').textContent = `${Math.floor(ultimateCharge)}%`;
+  const abilityRemaining = Math.max(0, (abilityReadyAt - now) / 1000);
+  document.querySelector('#abilityCd').textContent = abilityRemaining > 0 ? abilityRemaining.toFixed(1) : 'READY';
 
   if (!player.userData.alive) {
-    const remain = Math.max(0, Math.ceil((respawnAt - performance.now()) / 1000));
+    const remain = Math.max(0, Math.ceil((respawnAt - now) / 1000));
     showBanner(`RESPAWN IN ${remain}`, 300);
+  } else if (now < player.userData.stunnedUntil) {
+    showBanner('STUNNED', 250);
   }
 }
 
@@ -431,18 +617,19 @@ function animate() {
   const now = performance.now();
 
   if (matchStarted) {
-    updatePlayer(dt);
+    updatePlayer(dt, now);
     updateBots(dt, now);
     updateRespawns(now);
     updateObjective(dt);
-    updateHud();
+    updateHud(now);
   } else {
-    camera.position.set(0, 18, 32);
+    camera.position.set(0, 20, 35);
     camera.lookAt(0, 0, 0);
   }
 
-  objectiveRing.rotation.z += dt * 0.4;
-  objective.material.emissiveIntensity = 1.5 + Math.sin(now * 0.004) * 0.6;
+  updateEffects(dt);
+  objectiveRing.rotation.z += dt * 0.42;
+  objective.material.emissiveIntensity = 1.7 + Math.sin(now * 0.004) * 0.65;
   renderer.render(scene, camera);
 }
 animate();
