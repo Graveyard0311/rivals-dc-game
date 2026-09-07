@@ -123,7 +123,8 @@ wss.on('connection', ws => {
 
     if (msg.type === 'start-match') {
       if (lobby.hostId !== ws.meta.id) return;
-      broadcast(lobby, { type: 'match-start', seed: crypto.randomInt(0, 2 ** 31 - 1), players: snapshot(lobby) });
+      const mode = msg.mode === 'tdm' ? 'tdm' : 'domination';
+      broadcast(lobby, { type: 'match-start', mode, seed: crypto.randomInt(0, 2 ** 31 - 1), players: snapshot(lobby) });
       return;
     }
 
@@ -278,12 +279,24 @@ wss.on('connection', ws => {
 
       if (event.kind === 'death-confirmed') {
         const killerId = String(event.killerId || '');
-        const killer = lobby.clients.get(killerId);
-        if (!killer || killer.team === self.team) return;
-        send(killer.ws, {
+        const killer = killerId ? lobby.clients.get(killerId) : null;
+        const claimedTeam = event.killerTeam === 'red' ? 'red' : event.killerTeam === 'blue' ? 'blue' : null;
+        const killerTeam = killer && killer.team !== self.team
+          ? killer.team
+          : claimedTeam && claimedTeam !== self.team
+            ? claimedTeam
+            : null;
+        if (!killerTeam) return;
+        broadcast(lobby, {
           type: 'combat-event',
-          id: ws.meta.id,
-          event: { kind: 'kill-confirmed', victimId: ws.meta.id }
+          id: killerId,
+          event: {
+            kind: 'team-kill',
+            team: killerTeam,
+            victimId: ws.meta.id,
+            killerId,
+            sourceName: String(event.sourceName || killer?.name || 'Opponent').slice(0, 48)
+          }
         });
       }
     }
