@@ -1025,7 +1025,7 @@ function animate() {
 
   if (matchStarted) {
     updatePlayer(dt, now);
-    if (joinedLobby && network.connected && player?.userData.alive && now - lastNetworkStateAt >= 100) {
+    if (joinedLobby && network.connected && player && now - lastNetworkStateAt >= 100) {
       lastNetworkStateAt = now;
       network.sendState({
         t: Date.now(),
