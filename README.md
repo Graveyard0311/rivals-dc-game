@@ -84,3 +84,14 @@ The current prototype includes reusable pair-based team-ups for Batman + Nightwi
 ## Bot difficulty
 
 Before deploying, choose Easy, Normal, Hard, or Expert. The profile changes bot movement pressure, accuracy, damage output, and ability/ultimate cadence. In private lobbies, the host-selected difficulty is synchronized to all clients when the match starts.
+
+
+## Arenas
+
+Three prototype arena layouts are selectable before deployment:
+
+- **Nexus Arena** — balanced city combat.
+- **Gotham Industrial** — tighter lanes, alleys, and flank routes.
+- **Themyscira Ruins** — broader sightlines with temple-style cover.
+
+Arena selection changes environment palette, cover placement, collision geometry, and combat lanes. In private lobbies, the host's arena selection is synchronized to every client when the match starts.

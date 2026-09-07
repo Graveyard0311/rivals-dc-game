@@ -5,6 +5,7 @@ import { NetworkClient } from './network.js';
 import { loadSettings, saveSettings, resetSettings, keyLabel } from './settings.js';
 import { preferredTeamUp } from './teamups.js';
 import { getBotDifficulty } from './bot-difficulty.js';
+import { getArena } from './arenas.js';
 
 const app = document.querySelector('#app');
 const TEAM_SIZE = 6;
@@ -18,6 +19,7 @@ const OBJECTIVE_RADIUS = 6.5;
 let selectedHero = HEROES.find(h => h.id === 'superman') || HEROES[0];
 let selectedMode = 'domination';
 let selectedBotDifficulty = 'normal';
+let selectedArena = 'nexus';
 let matchStarted = false;
 let matchOver = false;
 let blueScore = 0;
@@ -66,6 +68,11 @@ app.innerHTML = `
           <option value="hard">Hard</option>
           <option value="expert">Expert</option>
         </select>
+      </div>
+      <div class="arena-select">
+        <button class="arena-option selected" data-arena="nexus"><strong>NEXUS ARENA</strong><small>Balanced city combat</small></button>
+        <button class="arena-option" data-arena="gotham"><strong>GOTHAM INDUSTRIAL</strong><small>Tight alleys and hard flanks</small></button>
+        <button class="arena-option" data-arena="themyscira"><strong>THEMYSCIRA RUINS</strong><small>Open lanes and temple cover</small></button>
       </div>
       <div id="roster" class="roster"></div>
       <details class="settings-panel">
@@ -162,6 +169,14 @@ document.querySelector('#botDifficulty').onchange = e => {
   selectedBotDifficulty = ['easy', 'normal', 'hard', 'expert'].includes(e.target.value) ? e.target.value : 'normal';
 };
 
+document.querySelectorAll('.arena-option').forEach(button => {
+  button.onclick = () => {
+    selectedArena = ['nexus', 'gotham', 'themyscira'].includes(button.dataset.arena) ? button.dataset.arena : 'nexus';
+    document.querySelectorAll('.arena-option').forEach(x => x.classList.toggle('selected', x === button));
+    applyArenaPreset(selectedArena);
+  };
+});
+
 const SETTINGS_BINDINGS = [
   ['forward', 'Move Forward'],
   ['backward', 'Move Backward'],
@@ -247,6 +262,7 @@ scene.add(ground);
 scene.add(new THREE.GridHelper(120, 60, 0x94b9e3, 0x566a86));
 
 const collisionBoxes = [];
+const arenaStructures = [];
 function makeBox(x, z, w, h, d, color = 0x60748e) {
   const mesh = new THREE.Mesh(
     new THREE.BoxGeometry(w, h, d),
@@ -256,6 +272,7 @@ function makeBox(x, z, w, h, d, color = 0x60748e) {
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   scene.add(mesh);
+  arenaStructures.push(mesh);
   const bounds = new THREE.Box3().setFromObject(mesh);
   collisionBoxes.push(bounds);
   return mesh;
@@ -273,8 +290,30 @@ for (let i = -2; i <= 2; i++) {
     new THREE.PlaneGeometry(5.5, 2),
     new THREE.MeshBasicMaterial({ color: i % 2 ? 0x55aaff : 0xb86cff })
   );
-  sign.position.set(tower.position.x, tower.position.y + 2, tower.position.z + 4.05);
-  scene.add(sign);
+  sign.position.set(0, 2, 4.05);
+  tower.add(sign);
+}
+
+function applyArenaPreset(id) {
+  const arena = getArena(id);
+  selectedArena = arena.id;
+  scene.background.setHex(arena.background);
+  scene.fog.color.setHex(arena.background);
+  ground.material.color.setHex(arena.ground);
+
+  collisionBoxes.length = 0;
+  arenaStructures.forEach((mesh, index) => {
+    const preset = arena.structures[index];
+    if (!preset) return;
+    const [x, z, sx, sz, color] = preset;
+    mesh.position.x = x;
+    mesh.position.z = z;
+    mesh.scale.x = sx;
+    mesh.scale.z = sz;
+    mesh.material.color.setHex(color);
+    mesh.updateMatrixWorld(true);
+    collisionBoxes.push(new THREE.Box3().setFromObject(mesh));
+  });
 }
 
 const objective = new THREE.Mesh(
@@ -842,6 +881,8 @@ network.on('match-start', msg => {
   networkPlayers = msg.players || networkPlayers;
   selectedMode = msg.mode === 'tdm' ? 'tdm' : 'domination';
   selectedBotDifficulty = ['easy', 'normal', 'hard', 'expert'].includes(msg.difficulty) ? msg.difficulty : 'normal';
+  selectedArena = ['nexus', 'gotham', 'themyscira'].includes(msg.arena) ? msg.arena : 'nexus';
+  applyArenaPreset(selectedArena);
   if (!matchStarted) startMatch(networkPlayers);
 });
 
@@ -878,7 +919,7 @@ document.querySelector('#joinLobbyBtn').onclick = async () => {
 
 deployBtn.onclick = () => {
   if (!joinedLobby) return startMatch();
-  if (network.playerId === lobbyHostId) network.startMatch(selectedMode, selectedBotDifficulty);
+  if (network.playerId === lobbyHostId) network.startMatch(selectedMode, selectedBotDifficulty, selectedArena);
   else setNetworkStatus('Waiting for the host to start the match');
 };
 
@@ -1536,6 +1577,8 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+
+applyArenaPreset(selectedArena);
 
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;

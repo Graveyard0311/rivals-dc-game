@@ -125,7 +125,8 @@ wss.on('connection', ws => {
       if (lobby.hostId !== ws.meta.id) return;
       const mode = msg.mode === 'tdm' ? 'tdm' : 'domination';
       const difficulty = ['easy', 'normal', 'hard', 'expert'].includes(msg.difficulty) ? msg.difficulty : 'normal';
-      broadcast(lobby, { type: 'match-start', mode, difficulty, seed: crypto.randomInt(0, 2 ** 31 - 1), players: snapshot(lobby) });
+      const arena = ['nexus', 'gotham', 'themyscira'].includes(msg.arena) ? msg.arena : 'nexus';
+      broadcast(lobby, { type: 'match-start', mode, difficulty, arena, seed: crypto.randomInt(0, 2 ** 31 - 1), players: snapshot(lobby) });
       return;
     }
 
