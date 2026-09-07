@@ -27,6 +27,8 @@ Private, browser-first Marvel/DC hero-shooter demo.
 - Q — ultimate at 100%
 - Space — jump
 
+Default movement/ability keys can be rebound from **Settings & Keybinds** on the hero-select screen. FOV, mouse sensitivity, master volume, and health-bar visibility are also saved locally.
+
 ## Run locally
 
 ```bash
