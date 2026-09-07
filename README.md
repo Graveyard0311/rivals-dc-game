@@ -79,3 +79,8 @@ The hosted Pages build supports the full offline 6v6 experience. Private multipl
 ## Team-up abilities
 
 The current prototype includes reusable pair-based team-ups for Batman + Nightwing, Superman + Wonder Woman, Flash + Green Lantern, Raven + Starfire, and Batman + Cyborg. When the selected hero has an eligible partner on the same team, the HUD exposes an `F` team-up slot with its own cooldown.
+
+
+## Bot difficulty
+
+Before deploying, choose Easy, Normal, Hard, or Expert. The profile changes bot movement pressure, accuracy, damage output, and ability/ultimate cadence. In private lobbies, the host-selected difficulty is synchronized to all clients when the match starts.
