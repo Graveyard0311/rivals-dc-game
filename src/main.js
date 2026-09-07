@@ -301,23 +301,71 @@ function addKillFeed(text) {
   setTimeout(() => item.remove(), 5000);
 }
 
-function heal(target, amount) {
+function canRouteRemoteEffect(actor, target) {
+  if (!joinedLobby || !network.connected || !target?.userData.isRemote || !actor) return false;
+  return actor === player || network.playerId === lobbyHostId;
+}
+
+function applyEffect(target, effect, { duration = 0, amount = 0, actor = null, networkApplied = false, sourcePosition = null } = {}) {
   if (!target?.userData.alive) return;
-  target.userData.hp = Math.min(target.userData.maxHp, target.userData.hp + amount);
-  pulseEffect(target.position, 0x72ffbf, 2.5, 0.35);
+  if (!networkApplied && canRouteRemoteEffect(actor, target)) {
+    network.sendCombatEvent({
+      kind: 'ability-effect',
+      targetId: target.userData.networkId,
+      effect,
+      duration,
+      amount,
+      sourceId: actor?.userData.networkId || null,
+      sourceName: actor?.userData.hero?.name || 'Ability',
+      sourceTeam: actor?.userData.team,
+      sourcePosition: sourcePosition || (actor ? { x: actor.position.x, y: actor.position.y, z: actor.position.z } : null)
+    });
+    return;
+  }
+
+  const now = performance.now();
+  if (effect === 'heal') {
+    target.userData.hp = Math.min(target.userData.maxHp, target.userData.hp + amount);
+    pulseEffect(target.position, 0x72ffbf, 2.5, 0.35);
+  }
+  if (effect === 'shield') {
+    target.userData.shieldUntil = Math.max(target.userData.shieldUntil, now + duration);
+    pulseEffect(target.position, 0x8bd7ff, 2.7, 0.3);
+  }
+  if (effect === 'slow') target.userData.slowedUntil = Math.max(target.userData.slowedUntil, now + duration);
+  if (effect === 'root') target.userData.rootedUntil = Math.max(target.userData.rootedUntil, now + duration);
+  if (effect === 'stun') target.userData.stunnedUntil = Math.max(target.userData.stunnedUntil, now + duration);
+  if (effect === 'haste') target.userData.hasteUntil = Math.max(target.userData.hasteUntil, now + duration);
+  if (effect === 'knockback') {
+    const origin = sourcePosition
+      ? new THREE.Vector3(sourcePosition.x || 0, 0, sourcePosition.z || 0)
+      : actor?.position?.clone().setY(0);
+    if (origin) {
+      const push = target.position.clone().setY(0).sub(origin);
+      if (push.lengthSq()) moveWithCollision(target, push.normalize().multiplyScalar(amount || 3.5));
+    }
+  }
+}
+
+function heal(target, amount, actor = null, networkApplied = false) {
+  applyEffect(target, 'heal', { amount, actor, networkApplied });
 }
 
 function damage(target, amount, attacker, networkApplied = false) {
   if (!target?.userData.alive || matchOver) return;
 
-  if (joinedLobby && network.connected && target.userData.isRemote && attacker === player && !networkApplied) {
+  if (joinedLobby && network.connected && target.userData.isRemote && !networkApplied &&
+      (attacker === player || (network.playerId === lobbyHostId && attacker && !attacker.userData.isRemote))) {
     network.sendCombatEvent({
       kind: 'damage',
       targetId: target.userData.networkId,
       amount,
-      source: selectedHero.primary
+      source: attacker?.userData.hero?.primary || selectedHero.primary,
+      sourceId: attacker?.userData.networkId || null,
+      sourceName: attacker?.userData.hero?.name || selectedHero.name,
+      sourceTeam: attacker?.userData.team
     });
-    showHitFeedback(amount);
+    if (attacker === player) showHitFeedback(amount);
     return;
   }
 
@@ -531,6 +579,18 @@ network.on('combat-event', msg => {
     return;
   }
 
+  if (msg.event.kind === 'ability-effect') {
+    const attacker = remoteFighters.get(msg.id) || null;
+    applyEffect(player, msg.event.effect, {
+      duration: Number(msg.event.duration || 0),
+      amount: Number(msg.event.amount || 0),
+      actor: attacker,
+      networkApplied: true,
+      sourcePosition: msg.event.sourcePosition || null
+    });
+    return;
+  }
+
   if (msg.event.kind === 'kill-confirmed') {
     playerKills++;
     ultimateCharge = Math.min(100, ultimateCharge + 24);
@@ -700,15 +760,17 @@ function activateAbility(actor, kind, isHuman = false) {
     pulseEffect(actor.position, hero.color, 3.2, 0.3);
   }
   if (kind === 'shield') {
-    actor.userData.shieldUntil = now + 3200;
+    applyEffect(actor, 'shield', { duration: 3200, actor });
     pulseEffect(actor.position, 0x8bd7ff, 4, 0.5);
   }
   if (kind === 'teamShield') {
-    allies.filter(a => a.position.distanceTo(actor.position) < 11).forEach(a => a.userData.shieldUntil = now + 3000);
+    allies.filter(a => a.position.distanceTo(actor.position) < 11)
+      .forEach(a => applyEffect(a, 'shield', { duration: 3000, actor }));
     pulseEffect(actor.position, 0x70e8ff, 7, 0.6);
   }
   if (kind === 'heal') {
-    allies.filter(a => a.position.distanceTo(actor.position) < 12).forEach(a => heal(a, a.userData.maxHp * 0.22));
+    allies.filter(a => a.position.distanceTo(actor.position) < 12)
+      .forEach(a => heal(a, a.userData.maxHp * 0.22, actor));
     pulseEffect(actor.position, 0x6dffb3, 7, 0.6);
   }
   if (kind === 'burst') {
@@ -737,12 +799,9 @@ function useSecondary() {
     const radius = kind === 'rootBurst' ? 9 : 8;
     for (const enemy of enemies.filter(e => e.position.distanceTo(player.position) < radius)) {
       damage(enemy, selectedHero.damage * 0.65, player);
-      if (kind === 'slowBurst') enemy.userData.slowedUntil = now + 2600;
-      if (kind === 'rootBurst') enemy.userData.rootedUntil = now + 1500;
-      if (kind === 'knockbackBurst') {
-        const push = enemy.position.clone().sub(player.position).setY(0);
-        if (push.lengthSq()) moveWithCollision(enemy, push.normalize().multiplyScalar(3.8));
-      }
+      if (kind === 'slowBurst') applyEffect(enemy, 'slow', { duration: 2600, actor: player });
+      if (kind === 'rootBurst') applyEffect(enemy, 'root', { duration: 1500, actor: player });
+      if (kind === 'knockbackBurst') applyEffect(enemy, 'knockback', { amount: 3.8, actor: player });
     }
     pulseEffect(player.position, selectedHero.color, radius, 0.55);
   } else {
@@ -791,12 +850,13 @@ function activateUltimate(actor, isHuman = false) {
     pulseEffect(actor.position, hero.color, 8, 0.8);
   }
   if (hero.ultKind === 'stun') {
-    enemies.filter(e => e.position.distanceTo(actor.position) < 14).forEach(e => e.userData.stunnedUntil = now + 3500);
+    enemies.filter(e => e.position.distanceTo(actor.position) < 14)
+      .forEach(e => applyEffect(e, 'stun', { duration: 3500, actor }));
     pulseEffect(actor.position, 0xb98cff, 14, 0.8);
   }
   if (hero.ultKind === 'teamHeal') {
-    allies.forEach(a => heal(a, a.userData.maxHp * 0.42));
-    allies.forEach(a => a.userData.shieldUntil = now + 2500);
+    allies.forEach(a => heal(a, a.userData.maxHp * 0.42, actor));
+    allies.forEach(a => applyEffect(a, 'shield', { duration: 2500, actor }));
     pulseEffect(actor.position, 0x6effc2, 15, 0.9);
   }
   if (isHuman) showBanner(hero.ultimate.toUpperCase(), 1400);
