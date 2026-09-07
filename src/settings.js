@@ -3,6 +3,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   fov: 70,
   masterVolume: 0.65,
   reducedCameraShake: false,
+  showHealthBars: true,
   keybinds: {
     forward: 'KeyW',
     backward: 'KeyS',
@@ -32,6 +33,7 @@ export function loadSettings() {
     fov: validNumber(saved.fov, 70, 110, DEFAULT_SETTINGS.fov),
     masterVolume: validNumber(saved.masterVolume, 0, 1, DEFAULT_SETTINGS.masterVolume),
     reducedCameraShake: Boolean(saved.reducedCameraShake),
+    showHealthBars: saved.showHealthBars !== false,
     keybinds: {
       ...DEFAULT_SETTINGS.keybinds,
       ...(saved.keybinds || {})
