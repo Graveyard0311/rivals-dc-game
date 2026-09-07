@@ -25,6 +25,7 @@ Private, browser-first Marvel/DC hero-shooter demo.
 - Left Mouse — primary attack
 - Right Mouse — secondary action
 - Shift — mobility ability
+- F — team-up ability when an eligible partner is on your team
 - Q — ultimate at 100%
 - Space — jump (default; movement/jump/ability/ultimate keyboard binds are remappable)
 
@@ -73,3 +74,8 @@ GitHub Actions also includes a `Desktop Packages` workflow that builds Windows p
 The repository includes a `Browser Demo` GitHub Actions workflow that builds and deploys the current `main` branch to GitHub Pages.
 
 The hosted Pages build supports the full offline 6v6 experience. Private multiplayer still requires a reachable WebSocket server configured through `VITE_WS_URL`; when no server is available, the UI falls back to offline play.
+
+
+## Team-up abilities
+
+The current prototype includes reusable pair-based team-ups for Batman + Nightwing, Superman + Wonder Woman, Flash + Green Lantern, Raven + Starfire, and Batman + Cyborg. When the selected hero has an eligible partner on the same team, the HUD exposes an `F` team-up slot with its own cooldown.

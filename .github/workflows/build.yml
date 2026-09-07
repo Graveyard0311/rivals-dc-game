@@ -18,6 +18,7 @@ jobs:
       - run: npm run build
       - run: npm run check:server
       - run: npm run test:network
+      - run: npm run test:teamups
       - name: Upload browser build
         uses: actions/upload-artifact@v4
         with:
