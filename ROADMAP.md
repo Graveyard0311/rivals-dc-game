@@ -1,0 +1,54 @@
+# Rivals: Collision Roadmap
+
+## Milestone A — Core combat foundation ✅
+- Three.js/Vite browser client
+- Third-person camera and movement
+- Hero selection
+- 6v6 bot-populated matches
+- Objective scoring
+- Death/respawn loop
+- Kill feed and HUD
+- CI build verification
+
+## Milestone B — Hero identity ✅ / in progress
+- Data-driven Marvel/DC roster
+- Vanguard, Duelist and Strategist roles
+- Hero-specific primary names
+- Dash/blink/shield/team-shield/heal/burst ability archetypes
+- Slam/empower/stun/team-heal ultimate archetypes
+- Cooldowns and ultimate charge
+- Role-aware bot behavior
+
+## Milestone C — Alpha feel pass — next
+- Arena/player collision
+- Better hit and projectile VFX
+- Projectile and melee attack types
+- Health bars/nameplates over combatants
+- Damage numbers/hit markers
+- Improved objective presentation
+- Better bot cover/flank navigation
+- Audio pass
+
+## Milestone D — Two-person private demo
+- Multiplayer session/lobby
+- Two human clients in the same match
+- Authoritative match state
+- Bots fill every unused slot
+- Join/leave/reconnect behavior
+- Networked damage, abilities and objective state
+
+## Milestone E — Content expansion
+- Full priority roster
+- Individual bespoke hero kits
+- Team-up abilities
+- Additional arenas
+- Convoy/payload and hybrid modes
+- More bot personalities/difficulty levels
+
+## Milestone F — Packaging/polish
+- Browser-hosted test URL
+- Downloadable desktop wrapper/build
+- Settings and keybinds
+- Performance optimization
+- Animation/model/audio polish
+- Final private-demo QA
