@@ -13,6 +13,7 @@ Private, browser-first Marvel/DC hero-shooter demo.
 - Hero-specific health, damage, range, movement speed, fire rate, secondary, ability and ultimate data
 - Bot target acquisition, cover/flank movement and combat
 - Domination capture objective and Team Deathmatch
+- Three selectable arena blockouts: Nexus District, Gotham Foundry and Themyscira Ruins
 - Mode-specific score progression (Domination to 100; Team Deathmatch to 30)
 - Deaths, kill feed, respawns and K/D tracking
 - Ultimate charge and area-damage ultimate
