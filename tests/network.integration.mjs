@@ -97,7 +97,7 @@ try {
   assert.equal(joinedNotice.players.length, 2);
 
   const matchStartB = nextMessage(b, m => m.type === 'match-start');
-  send(a, 'start-match', { mode: 'tdm', difficulty: 'hard' });
+  send(a, 'start-match', { mode: 'tdm', difficulty: 'hard', arena: 'gotham' });
   const matchStartA = await nextMessage(a, m => m.type === 'match-start');
   const matchStartRemote = await matchStartB;
   assert.equal(matchStartA.players.length, 2);
@@ -106,6 +106,8 @@ try {
   assert.equal(matchStartRemote.mode, 'tdm');
   assert.equal(matchStartA.difficulty, 'hard');
   assert.equal(matchStartRemote.difficulty, 'hard');
+  assert.equal(matchStartA.arena, 'gotham');
+  assert.equal(matchStartRemote.arena, 'gotham');
 
   const stateOnB = nextMessage(b, m => m.type === 'state' && m.id === helloA.playerId);
   send(a, 'state', {
