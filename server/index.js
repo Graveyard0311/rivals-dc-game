@@ -223,6 +223,59 @@ wss.on('connection', ws => {
         return;
       }
 
+      if (event.kind === 'bot-damage') {
+        if (lobby.hostId === ws.meta.id) return;
+        const host = lobby.clients.get(lobby.hostId);
+        const team = event.team === 'red' ? 'red' : 'blue';
+        const slot = Number(event.slot);
+        const amount = Number(event.amount);
+        if (!host || team === self.team || !Number.isInteger(slot) || slot < 0 || slot > 5 || !Number.isFinite(amount) || amount <= 0) return;
+        send(host.ws, {
+          type: 'combat-event',
+          id: ws.meta.id,
+          event: {
+            kind: 'bot-damage',
+            team,
+            slot,
+            amount: Math.min(amount, 250),
+            source: String(event.source || 'attack').slice(0, 48),
+            sourceName: String(self.name || 'Player').slice(0, 48)
+          }
+        });
+        return;
+      }
+
+      if (event.kind === 'bot-effect') {
+        if (lobby.hostId === ws.meta.id) return;
+        const host = lobby.clients.get(lobby.hostId);
+        const team = event.team === 'red' ? 'red' : 'blue';
+        const slot = Number(event.slot);
+        const effect = String(event.effect || '');
+        const duration = Math.max(0, Math.min(5000, Number(event.duration || 0)));
+        const amount = Math.max(0, Math.min(500, Number(event.amount || 0)));
+        const hostile = ['slow', 'root', 'stun', 'knockback'].includes(effect);
+        const friendly = ['heal', 'shield', 'haste'].includes(effect);
+        if (!host || !Number.isInteger(slot) || slot < 0 || slot > 5 || (!hostile && !friendly)) return;
+        if (hostile && team === self.team) return;
+        if (friendly && team !== self.team) return;
+        send(host.ws, {
+          type: 'combat-event',
+          id: ws.meta.id,
+          event: {
+            kind: 'bot-effect',
+            team,
+            slot,
+            effect,
+            duration,
+            amount,
+            sourcePosition: event.sourcePosition && Number.isFinite(Number(event.sourcePosition.x)) && Number.isFinite(Number(event.sourcePosition.z))
+              ? { x: Number(event.sourcePosition.x), y: Number(event.sourcePosition.y || 0), z: Number(event.sourcePosition.z) }
+              : null
+          }
+        });
+        return;
+      }
+
       if (event.kind === 'death-confirmed') {
         const killerId = String(event.killerId || '');
         const killer = lobby.clients.get(killerId);
