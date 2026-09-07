@@ -6,6 +6,7 @@ import { loadSettings, saveSettings, resetSettings, keyLabel } from './settings.
 import { preferredTeamUp } from './teamups.js';
 import { getBotDifficulty } from './bot-difficulty.js';
 import { getArena } from './arenas.js';
+import { getGraphicsProfile } from './graphics-quality.js';
 
 const app = document.querySelector('#app');
 const TEAM_SIZE = 6;
@@ -88,6 +89,14 @@ app.innerHTML = `
           <label>Field of view <input id="fovSetting" type="range" min="70" max="110" step="1"><span id="fovValue"></span></label>
           <label>Master volume <input id="masterVolume" type="range" min="0" max="1" step="0.05"><span id="masterVolumeValue"></span></label>
           <label class="toggle-setting"><input id="reducedCameraShake" type="checkbox"> Reduced camera shake</label>
+          <label>Graphics quality
+            <select id="graphicsQuality">
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+              <option value="ultra">Ultra</option>
+            </select>
+          </label>
           <label class="toggle-setting"><input id="showHealthBars" type="checkbox"> Show combatant health bars</label>
         </div>
         <div id="keybindGrid" class="keybind-grid"></div>
@@ -157,6 +166,10 @@ document.querySelector('#keybindGrid').addEventListener('click', e => {
   button.textContent = 'PRESS KEY';
   button.classList.add('listening');
 });
+document.querySelector('#graphicsQuality').addEventListener('change', e => {
+  settings.graphicsQuality = ['low', 'medium', 'high', 'ultra'].includes(e.target.value) ? e.target.value : 'high';
+  persistSettings();
+});
 document.querySelector('#resetSettingsBtn').onclick = () => {
   settings = resetSettings();
   pendingBind = null;
@@ -179,7 +192,8 @@ document.querySelectorAll('.arena-option').forEach(button => {
   button.onclick = () => {
     selectedArena = ['nexus', 'gotham', 'themyscira'].includes(button.dataset.arena) ? button.dataset.arena : 'nexus';
     document.querySelectorAll('.arena-option').forEach(x => x.classList.toggle('selected', x === button));
-    applyArenaPreset(selectedArena);
+    applyGraphicsQuality();
+applyArenaPreset(selectedArena);
   };
 });
 
@@ -199,13 +213,15 @@ function renderSettings() {
   const volume = document.querySelector('#masterVolume');
   const reduced = document.querySelector('#reducedCameraShake');
   const bars = document.querySelector('#showHealthBars');
-  if (!sens || !fov || !volume || !reduced || !bars) return;
+  const graphics = document.querySelector('#graphicsQuality');
+  if (!sens || !fov || !volume || !reduced || !bars || !graphics) return;
 
   sens.value = String(settings.mouseSensitivity);
   fov.value = String(settings.fov);
   volume.value = String(settings.masterVolume);
   reduced.checked = settings.reducedCameraShake;
   bars.checked = settings.showHealthBars;
+  graphics.value = settings.graphicsQuality;
   document.querySelector('#mouseSensitivityValue').textContent = settings.mouseSensitivity.toFixed(4);
   document.querySelector('#fovValue').textContent = String(settings.fov);
   document.querySelector('#masterVolumeValue').textContent = `${Math.round(settings.masterVolume * 100)}%`;
@@ -224,6 +240,7 @@ function persistSettings() {
   saveSettings(settings);
   camera.fov = settings.fov;
   camera.updateProjectionMatrix();
+  if (typeof renderer !== 'undefined') applyGraphicsQuality();
   renderSettings();
 }
 
@@ -245,10 +262,11 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x9bc4e8);
 scene.fog = new THREE.Fog(0x9bc4e8, 45, 115);
 const camera = new THREE.PerspectiveCamera(settings.fov, innerWidth / innerHeight, 0.1, 500);
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const initialGraphics = getGraphicsProfile(settings.graphicsQuality);
+const renderer = new THREE.WebGLRenderer({ antialias: settings.graphicsQuality !== 'low' });
 renderer.setSize(innerWidth, innerHeight);
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.shadowMap.enabled = true;
+renderer.setPixelRatio(Math.min(devicePixelRatio, initialGraphics.maxPixelRatio));
+renderer.shadowMap.enabled = initialGraphics.shadows;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 app.prepend(renderer.domElement);
 
@@ -275,8 +293,8 @@ function makeBox(x, z, w, h, d, color = 0x60748e) {
     new THREE.MeshStandardMaterial({ color, roughness: 0.58, metalness: 0.24 })
   );
   mesh.position.set(x, h / 2, z);
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
+  mesh.castShadow = getGraphicsProfile(settings.graphicsQuality).shadows;
+  mesh.receiveShadow = getGraphicsProfile(settings.graphicsQuality).shadows;
   scene.add(mesh);
   arenaStructures.push(mesh);
   const bounds = new THREE.Box3().setFromObject(mesh);
@@ -298,6 +316,20 @@ for (let i = -2; i <= 2; i++) {
   );
   sign.position.set(0, 2, 4.05);
   tower.add(sign);
+}
+
+function applyGraphicsQuality() {
+  const profile = getGraphicsProfile(settings.graphicsQuality);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, profile.maxPixelRatio));
+  renderer.shadowMap.enabled = profile.shadows;
+  sun.castShadow = profile.shadows;
+  ground.receiveShadow = profile.shadows;
+  scene.fog.far = profile.fogFar;
+  arenaStructures.forEach(mesh => {
+    mesh.castShadow = profile.shadows;
+    mesh.receiveShadow = profile.shadows;
+  });
+  renderer.setSize(innerWidth, innerHeight, false);
 }
 
 function applyArenaPreset(id) {
