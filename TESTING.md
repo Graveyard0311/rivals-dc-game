@@ -54,3 +54,12 @@ Open the Vite URL in a desktop browser.
 4. Deploy and verify the new controls/settings apply immediately.
 5. Reload the game and verify settings persist.
 6. Use **RESET SETTINGS** and verify defaults are restored.
+
+
+## Health-bar visibility test
+
+1. Open **SETTINGS & KEYBINDS**.
+2. Disable **Show combatant health bars** and deploy.
+3. Confirm overhead health bars are hidden while HUD health remains visible.
+4. Reload and confirm the setting persists.
+5. Re-enable the setting and confirm bars return.
