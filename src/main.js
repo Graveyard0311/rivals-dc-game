@@ -842,6 +842,8 @@ network.on('host-changed', msg => {
 network.on('match-start', msg => {
   networkPlayers = msg.players || networkPlayers;
   selectedMode = msg.mode === 'tdm' ? 'tdm' : 'domination';
+  selectedArena = ['nexus', 'gotham', 'themyscira'].includes(msg.arena) ? msg.arena : 'nexus';
+  buildArena(selectedArena);
   if (!matchStarted) startMatch(networkPlayers);
 });
 
@@ -878,7 +880,7 @@ document.querySelector('#joinLobbyBtn').onclick = async () => {
 
 deployBtn.onclick = () => {
   if (!joinedLobby) return startMatch();
-  if (network.playerId === lobbyHostId) network.startMatch(selectedMode);
+  if (network.playerId === lobbyHostId) network.startMatch(selectedMode, selectedArena);
   else setNetworkStatus('Waiting for the host to start the match');
 };
 
