@@ -63,3 +63,13 @@ Open the Vite URL in a desktop browser.
 3. Confirm overhead health bars are hidden while HUD health remains visible.
 4. Reload and confirm the setting persists.
 5. Re-enable the setting and confirm bars return.
+
+
+## Multi-arena test
+
+1. On the hero-select screen, switch between **Nexus District**, **Gotham Foundry**, and **Themyscira Ruins**.
+2. Confirm the visible blockout, lighting/fog and collision layout change before deployment.
+3. Play a complete offline match on each arena and verify both teams can reach the center/objective.
+4. In a two-client private lobby, have the host select Gotham or Themyscira.
+5. Confirm both clients load the host-selected arena when the match starts.
+6. Verify bot/player collision and team-up ability behavior remain functional on every arena.
