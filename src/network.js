@@ -84,8 +84,8 @@ export class NetworkClient {
     return this.send('set-hero', { heroId });
   }
 
-  startMatch() {
-    return this.send('start-match');
+  startMatch(mode = 'domination') {
+    return this.send('start-match', { mode });
   }
 
   sendState(state) {

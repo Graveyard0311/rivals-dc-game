@@ -42,6 +42,7 @@
 ## Milestone E — Content expansion
 - Full priority roster ✅ 33-character prototype roster / expanding
 - Individual bespoke hero kits ✅ / expanding
+- Team Deathmatch ✅
 - Team-up abilities
 - Additional arenas
 - Convoy/payload and hybrid modes

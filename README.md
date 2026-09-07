@@ -11,8 +11,8 @@ Private, browser-first Marvel/DC hero-shooter demo.
 - Primary and secondary attacks
 - Hero-specific health, damage, range, movement speed, fire rate, secondary, ability and ultimate data
 - Bot target acquisition, cover/flank movement and combat
-- Central capture objective
-- Team score progression to 100
+- Domination capture objective and Team Deathmatch
+- Mode-specific score progression (Domination to 100; Team Deathmatch to 30)
 - Deaths, kill feed, respawns and K/D tracking
 - Ultimate charge and area-damage ultimate
 - Match victory and automatic reset
