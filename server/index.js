@@ -173,14 +173,51 @@ wss.on('connection', ws => {
         const targetId = String(event.targetId || '');
         const target = lobby.clients.get(targetId);
         const amount = Number(event.amount);
-        if (!target || target.team === self.team || !Number.isFinite(amount) || amount <= 0) return;
+        const sourceTeam = lobby.hostId === ws.meta.id && (event.sourceTeam === 'blue' || event.sourceTeam === 'red')
+          ? event.sourceTeam
+          : self.team;
+        if (!target || target.team === sourceTeam || !Number.isFinite(amount) || amount <= 0) return;
         send(target.ws, {
           type: 'combat-event',
-          id: ws.meta.id,
+          id: String(event.sourceId || ws.meta.id),
           event: {
             kind: 'damage',
             amount: Math.min(amount, 250),
-            source: String(event.source || 'attack').slice(0, 48)
+            source: String(event.source || 'attack').slice(0, 48),
+            sourceName: String(event.sourceName || self.name || 'Opponent').slice(0, 48),
+            sourceTeam
+          }
+        });
+        return;
+      }
+
+      if (event.kind === 'ability-effect') {
+        const targetId = String(event.targetId || '');
+        const target = lobby.clients.get(targetId);
+        const effect = String(event.effect || '');
+        const duration = Math.max(0, Math.min(5000, Number(event.duration || 0)));
+        const amount = Math.max(0, Math.min(500, Number(event.amount || 0)));
+        const sourceTeam = lobby.hostId === ws.meta.id && (event.sourceTeam === 'blue' || event.sourceTeam === 'red')
+          ? event.sourceTeam
+          : self.team;
+        const hostile = ['slow', 'root', 'stun', 'knockback'].includes(effect);
+        const friendly = ['heal', 'shield', 'haste'].includes(effect);
+        if (!target || (!hostile && !friendly)) return;
+        if (hostile && target.team === sourceTeam) return;
+        if (friendly && target.team !== sourceTeam) return;
+        send(target.ws, {
+          type: 'combat-event',
+          id: String(event.sourceId || ws.meta.id),
+          event: {
+            kind: 'ability-effect',
+            effect,
+            duration,
+            amount,
+            sourceName: String(event.sourceName || self.name || 'Ally').slice(0, 48),
+            sourceTeam,
+            sourcePosition: event.sourcePosition && Number.isFinite(Number(event.sourcePosition.x)) && Number.isFinite(Number(event.sourcePosition.z))
+              ? { x: Number(event.sourcePosition.x), y: Number(event.sourcePosition.y || 0), z: Number(event.sourcePosition.z) }
+              : null
           }
         });
         return;

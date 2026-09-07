@@ -37,7 +37,7 @@
 - Join/leave/reconnect behavior ✅ foundation
 - Networked damage ✅ owner-applied validated relay
 - Networked objective state ✅
-- Networked abilities — next
+- Networked abilities ✅ current heal/shield/slow/root/stun/knockback archetypes
 
 ## Milestone E — Content expansion
 - Full priority roster ✅ 33-character prototype roster / expanding
