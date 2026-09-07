@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import './styles.css';
 import { HEROES, getHero } from './heroes.js';
 import { NetworkClient } from './network.js';
+import { loadSettings, saveSettings, resetSettings, keyLabel } from './settings.js';
 
 const app = document.querySelector('#app');
 const TEAM_SIZE = 6;
@@ -31,6 +32,8 @@ let secondaryReadyAt = 0;
 let ultimateCharge = 0;
 let audioCtx = null;
 let objectiveState = 'NEUTRAL';
+let settings = loadSettings();
+let pendingBind = null;
 const network = new NetworkClient();
 let joinedLobby = false;
 let lobbyHostId = null;
@@ -50,6 +53,17 @@ app.innerHTML = `
         <button class="mode-option" data-mode="tdm"><strong>TEAM DEATHMATCH</strong><small>Eliminations score · First to 30</small></button>
       </div>
       <div id="roster" class="roster"></div>
+      <details class="settings-panel">
+        <summary>SETTINGS & KEYBINDS</summary>
+        <div class="settings-grid">
+          <label>Mouse sensitivity <input id="mouseSensitivity" type="range" min="0.0008" max="0.006" step="0.0001"><span id="mouseSensitivityValue"></span></label>
+          <label>Field of view <input id="fovSetting" type="range" min="70" max="110" step="1"><span id="fovValue"></span></label>
+          <label>Master volume <input id="masterVolume" type="range" min="0" max="1" step="0.05"><span id="masterVolumeValue"></span></label>
+          <label class="toggle-setting"><input id="reducedCameraShake" type="checkbox"> Reduced camera shake</label>
+        </div>
+        <div id="keybindGrid" class="keybind-grid"></div>
+        <button id="resetSettingsBtn" class="network-btn settings-reset">RESET SETTINGS</button>
+      </details>
       <div class="network-panel">
         <input id="playerName" maxlength="24" placeholder="Player name" value="Player">
         <input id="lobbyCode" maxlength="6" placeholder="Lobby code">
@@ -86,12 +100,84 @@ app.innerHTML = `
   </div>
 `;
 
+document.querySelector('#mouseSensitivity').addEventListener('input', e => {
+  settings.mouseSensitivity = Number(e.target.value);
+  persistSettings();
+});
+document.querySelector('#fovSetting').addEventListener('input', e => {
+  settings.fov = Number(e.target.value);
+  persistSettings();
+});
+document.querySelector('#masterVolume').addEventListener('input', e => {
+  settings.masterVolume = Number(e.target.value);
+  persistSettings();
+});
+document.querySelector('#reducedCameraShake').addEventListener('change', e => {
+  settings.reducedCameraShake = e.target.checked;
+  persistSettings();
+});
+document.querySelector('#keybindGrid').addEventListener('click', e => {
+  const button = e.target.closest('[data-bind]');
+  if (!button) return;
+  pendingBind = button.dataset.bind;
+  button.textContent = 'PRESS KEY';
+  button.classList.add('listening');
+});
+document.querySelector('#resetSettingsBtn').onclick = () => {
+  settings = resetSettings();
+  pendingBind = null;
+  persistSettings();
+};
+renderSettings();
+
 document.querySelectorAll('.mode-option').forEach(button => {
   button.onclick = () => {
     selectedMode = button.dataset.mode === 'tdm' ? 'tdm' : 'domination';
     document.querySelectorAll('.mode-option').forEach(x => x.classList.toggle('selected', x === button));
   };
 });
+
+const SETTINGS_BINDINGS = [
+  ['forward', 'Move Forward'],
+  ['backward', 'Move Backward'],
+  ['left', 'Move Left'],
+  ['right', 'Move Right'],
+  ['jump', 'Jump'],
+  ['ability', 'Ability'],
+  ['ultimate', 'Ultimate']
+];
+
+function renderSettings() {
+  const sens = document.querySelector('#mouseSensitivity');
+  const fov = document.querySelector('#fovSetting');
+  const volume = document.querySelector('#masterVolume');
+  const reduced = document.querySelector('#reducedCameraShake');
+  if (!sens || !fov || !volume || !reduced) return;
+
+  sens.value = String(settings.mouseSensitivity);
+  fov.value = String(settings.fov);
+  volume.value = String(settings.masterVolume);
+  reduced.checked = settings.reducedCameraShake;
+  document.querySelector('#mouseSensitivityValue').textContent = settings.mouseSensitivity.toFixed(4);
+  document.querySelector('#fovValue').textContent = String(settings.fov);
+  document.querySelector('#masterVolumeValue').textContent = `${Math.round(settings.masterVolume * 100)}%`;
+
+  const grid = document.querySelector('#keybindGrid');
+  grid.innerHTML = '';
+  for (const [action, label] of SETTINGS_BINDINGS) {
+    const row = document.createElement('div');
+    row.className = 'keybind-row';
+    row.innerHTML = `<span>${label}</span><button class="bind-btn" data-bind="${action}">${keyLabel(settings.keybinds[action])}</button>`;
+    grid.appendChild(row);
+  }
+}
+
+function persistSettings() {
+  saveSettings(settings);
+  camera.fov = settings.fov;
+  camera.updateProjectionMatrix();
+  renderSettings();
+}
 
 const rosterEl = document.querySelector('#roster');
 for (const hero of HEROES) {
@@ -110,7 +196,7 @@ for (const hero of HEROES) {
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x9bc4e8);
 scene.fog = new THREE.Fog(0x9bc4e8, 45, 115);
-const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 500);
+const camera = new THREE.PerspectiveCamera(settings.fov, innerWidth / innerHeight, 0.1, 500);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -767,15 +853,23 @@ deployBtn.onclick = () => {
 };
 
 addEventListener('keydown', e => {
+  if (pendingBind) {
+    e.preventDefault();
+    settings.keybinds[pendingBind] = e.code;
+    pendingBind = null;
+    persistSettings();
+    return;
+  }
+
   keys[e.code] = true;
-  if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') usePlayerAbility();
-  if (e.code === 'KeyQ') useUltimate();
+  if (e.code === settings.keybinds.ability) usePlayerAbility();
+  if (e.code === settings.keybinds.ultimate) useUltimate();
 });
 addEventListener('keyup', e => keys[e.code] = false);
 addEventListener('mousemove', e => {
   if (document.pointerLockElement === renderer.domElement && matchStarted) {
-    yaw -= e.movementX * 0.0022;
-    pitch = Math.max(-0.75, Math.min(0.35, pitch - e.movementY * 0.0018));
+    yaw -= e.movementX * settings.mouseSensitivity;
+    pitch = Math.max(-0.75, Math.min(0.35, pitch - e.movementY * settings.mouseSensitivity * 0.82));
   }
 });
 renderer.domElement.addEventListener('click', () => matchStarted && renderer.domElement.requestPointerLock());
@@ -799,7 +893,7 @@ function tone(freq = 220, duration = 0.055, gain = 0.025, type = 'sine') {
     const amp = ctx.createGain();
     osc.type = type;
     osc.frequency.value = freq;
-    amp.gain.setValueAtTime(gain, ctx.currentTime);
+    amp.gain.setValueAtTime(Math.max(0.0001, gain * settings.masterVolume), ctx.currentTime);
     amp.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration);
     osc.connect(amp).connect(ctx.destination);
     osc.start();
@@ -1174,10 +1268,10 @@ function updatePlayer(dt, now) {
   const forward = playerForward();
   const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
   const move = new THREE.Vector3();
-  if (keys.KeyW) move.add(forward);
-  if (keys.KeyS) move.sub(forward);
-  if (keys.KeyD) move.add(right);
-  if (keys.KeyA) move.sub(right);
+  if (keys[settings.keybinds.forward]) move.add(forward);
+  if (keys[settings.keybinds.backward]) move.sub(forward);
+  if (keys[settings.keybinds.right]) move.add(right);
+  if (keys[settings.keybinds.left]) move.sub(right);
   if (move.lengthSq()) move.normalize();
 
   let speedBoost = player.userData.empoweredUntil > now ? 1.22 : 1;
@@ -1185,7 +1279,7 @@ function updatePlayer(dt, now) {
   if (player.userData.slowedUntil > now) speedBoost *= 0.58;
   if (player.userData.rootedUntil <= now) moveWithCollision(player, move.multiplyScalar(selectedHero.speed * speedBoost * dt));
 
-  if (keys.Space && grounded) { verticalVelocity = 8; grounded = false; }
+  if (keys[settings.keybinds.jump] && grounded) { verticalVelocity = 8; grounded = false; }
   verticalVelocity -= 20 * dt;
   player.position.y += verticalVelocity * dt;
   if (player.position.y <= 0) {
