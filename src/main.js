@@ -1315,7 +1315,7 @@ function updateBots(dt, now) {
     bot.userData.target = target;
     updateBotAbility(bot, now);
 
-    const point = new THREE.Vector3(0, 0, 0);
+    const point = selectedMode === 'convoy' ? payload.position.clone().setY(0) : new THREE.Vector3(0, 0, 0);
     let desired = point.clone().sub(bot.position);
 
     const hpPct = bot.userData.hp / bot.userData.maxHp;
