@@ -287,15 +287,16 @@ wss.on('connection', ws => {
             ? claimedTeam
             : null;
         if (!killerTeam) return;
+        const resolvedKillerId = killer && killer.team === killerTeam ? killerId : '';
         broadcast(lobby, {
           type: 'combat-event',
-          id: killerId,
+          id: resolvedKillerId,
           event: {
             kind: 'team-kill',
             team: killerTeam,
             victimId: ws.meta.id,
-            killerId,
-            sourceName: String(event.sourceName || killer?.name || 'Opponent').slice(0, 48)
+            killerId: resolvedKillerId,
+            sourceName: String(event.sourceName || (resolvedKillerId ? killer?.name : '') || 'Opponent').slice(0, 48)
           }
         });
       }
