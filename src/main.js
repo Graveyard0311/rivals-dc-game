@@ -2,8 +2,11 @@ import * as THREE from 'three';
 import './styles.css';
 import { HEROES, getHero } from './heroes.js';
 import { NetworkClient } from './network.js';
+import { loadSettings, saveSettings, resetSettings, humanizeCode } from './settings.js';
 
 const app = document.querySelector('#app');
+let settings = loadSettings();
+let rebindingAction = null;
 const TEAM_SIZE = 6;
 const SCORE_TO_WIN = 100;
 const RESPAWN_SECONDS = 5;
@@ -44,6 +47,20 @@ app.innerHTML = `
       <h1>RIVALS: COLLISION</h1>
       <p>Choose your hero. You enter a full 6v6 objective match and bots fill every open slot.</p>
       <div id="roster" class="roster"></div>
+      <details class="settings-panel">
+        <summary>SETTINGS & KEYBINDS</summary>
+        <div class="settings-grid">
+          <label>FOV <input id="fovSetting" type="range" min="70" max="110" step="1"></label>
+          <span id="fovValue" class="setting-value"></span>
+          <label>Sensitivity <input id="sensSetting" type="range" min="0.25" max="2.5" step="0.05"></label>
+          <span id="sensValue" class="setting-value"></span>
+          <label>Master volume <input id="volumeSetting" type="range" min="0" max="1" step="0.05"></label>
+          <span id="volumeValue" class="setting-value"></span>
+          <label class="toggle-row"><input id="barsSetting" type="checkbox"> Show health bars</label>
+          <div class="bind-grid" id="bindGrid"></div>
+          <button id="resetSettingsBtn" class="network-btn" type="button">RESET SETTINGS</button>
+        </div>
+      </details>
       <div class="network-panel">
         <input id="playerName" maxlength="24" placeholder="Player name" value="Player">
         <input id="lobbyCode" maxlength="6" placeholder="Lobby code">
@@ -80,6 +97,51 @@ app.innerHTML = `
   </div>
 `;
 
+const BIND_ACTIONS = [
+  ['forward', 'Move Forward'], ['back', 'Move Back'], ['left', 'Move Left'], ['right', 'Move Right'],
+  ['jump', 'Jump'], ['ability', 'Ability'], ['ultimate', 'Ultimate']
+];
+
+function applySettingsToRuntime() {
+  camera.fov = settings.fov;
+  camera.updateProjectionMatrix();
+}
+
+function renderBindings() {
+  const grid = document.querySelector('#bindGrid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  for (const [action, label] of BIND_ACTIONS) {
+    const row = document.createElement('div');
+    row.className = 'bind-row';
+    row.innerHTML = `<span>${label}</span><button class="bind-btn" data-action="${action}">${humanizeCode(settings.bindings[action])}</button>`;
+    grid.appendChild(row);
+  }
+  grid.querySelectorAll('.bind-btn').forEach(btn => {
+    btn.onclick = () => {
+      rebindingAction = btn.dataset.action;
+      btn.textContent = 'PRESS KEY';
+    };
+  });
+}
+
+function syncSettingsUi() {
+  const fov = document.querySelector('#fovSetting');
+  const sens = document.querySelector('#sensSetting');
+  const volume = document.querySelector('#volumeSetting');
+  const bars = document.querySelector('#barsSetting');
+  if (!fov || !sens || !volume || !bars) return;
+
+  fov.value = settings.fov;
+  sens.value = settings.sensitivity;
+  volume.value = settings.masterVolume;
+  bars.checked = settings.showHealthBars;
+  document.querySelector('#fovValue').textContent = `${settings.fov}°`;
+  document.querySelector('#sensValue').textContent = settings.sensitivity.toFixed(2);
+  document.querySelector('#volumeValue').textContent = `${Math.round(settings.masterVolume * 100)}%`;
+  renderBindings();
+}
+
 const rosterEl = document.querySelector('#roster');
 for (const hero of HEROES) {
   const b = document.createElement('button');
@@ -94,10 +156,47 @@ for (const hero of HEROES) {
   rosterEl.appendChild(b);
 }
 
+const fovSetting = document.querySelector('#fovSetting');
+const sensSetting = document.querySelector('#sensSetting');
+const volumeSetting = document.querySelector('#volumeSetting');
+const barsSetting = document.querySelector('#barsSetting');
+
+fovSetting.oninput = () => {
+  settings.fov = Number(fovSetting.value);
+  document.querySelector('#fovValue').textContent = `${settings.fov}°`;
+  applySettingsToRuntime();
+  saveSettings(settings);
+};
+
+sensSetting.oninput = () => {
+  settings.sensitivity = Number(sensSetting.value);
+  document.querySelector('#sensValue').textContent = settings.sensitivity.toFixed(2);
+  saveSettings(settings);
+};
+
+volumeSetting.oninput = () => {
+  settings.masterVolume = Number(volumeSetting.value);
+  document.querySelector('#volumeValue').textContent = `${Math.round(settings.masterVolume * 100)}%`;
+  saveSettings(settings);
+};
+
+barsSetting.onchange = () => {
+  settings.showHealthBars = barsSetting.checked;
+  saveSettings(settings);
+};
+
+document.querySelector('#resetSettingsBtn').onclick = () => {
+  settings = resetSettings();
+  syncSettingsUi();
+  applySettingsToRuntime();
+};
+
+syncSettingsUi();
+
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x9bc4e8);
 scene.fog = new THREE.Fog(0x9bc4e8, 45, 115);
-const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 500);
+const camera = new THREE.PerspectiveCamera(settings.fov, innerWidth / innerHeight, 0.1, 500);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -719,15 +818,24 @@ deployBtn.onclick = () => {
 };
 
 addEventListener('keydown', e => {
+  if (rebindingAction) {
+    e.preventDefault();
+    settings.bindings[rebindingAction] = e.code;
+    rebindingAction = null;
+    saveSettings(settings);
+    renderBindings();
+    return;
+  }
+
   keys[e.code] = true;
-  if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') usePlayerAbility();
-  if (e.code === 'KeyQ') useUltimate();
+  if (e.code === settings.bindings.ability) usePlayerAbility();
+  if (e.code === settings.bindings.ultimate) useUltimate();
 });
 addEventListener('keyup', e => keys[e.code] = false);
 addEventListener('mousemove', e => {
   if (document.pointerLockElement === renderer.domElement && matchStarted) {
-    yaw -= e.movementX * 0.0022;
-    pitch = Math.max(-0.75, Math.min(0.35, pitch - e.movementY * 0.0018));
+    yaw -= e.movementX * 0.0022 * settings.sensitivity;
+    pitch = Math.max(-0.75, Math.min(0.35, pitch - e.movementY * 0.0018 * settings.sensitivity));
   }
 });
 renderer.domElement.addEventListener('click', () => matchStarted && renderer.domElement.requestPointerLock());
@@ -751,7 +859,7 @@ function tone(freq = 220, duration = 0.055, gain = 0.025, type = 'sine') {
     const amp = ctx.createGain();
     osc.type = type;
     osc.frequency.value = freq;
-    amp.gain.setValueAtTime(gain, ctx.currentTime);
+    amp.gain.setValueAtTime(gain * settings.masterVolume, ctx.currentTime);
     amp.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration);
     osc.connect(amp).connect(ctx.destination);
     osc.start();
@@ -1111,10 +1219,10 @@ function updatePlayer(dt, now) {
   const forward = playerForward();
   const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
   const move = new THREE.Vector3();
-  if (keys.KeyW) move.add(forward);
-  if (keys.KeyS) move.sub(forward);
-  if (keys.KeyD) move.add(right);
-  if (keys.KeyA) move.sub(right);
+  if (keys[settings.bindings.forward]) move.add(forward);
+  if (keys[settings.bindings.back]) move.sub(forward);
+  if (keys[settings.bindings.right]) move.add(right);
+  if (keys[settings.bindings.left]) move.sub(right);
   if (move.lengthSq()) move.normalize();
 
   let speedBoost = player.userData.empoweredUntil > now ? 1.22 : 1;
@@ -1122,7 +1230,7 @@ function updatePlayer(dt, now) {
   if (player.userData.slowedUntil > now) speedBoost *= 0.58;
   if (player.userData.rootedUntil <= now) moveWithCollision(player, move.multiplyScalar(selectedHero.speed * speedBoost * dt));
 
-  if (keys.Space && grounded) { verticalVelocity = 8; grounded = false; }
+  if (keys[settings.bindings.jump] && grounded) { verticalVelocity = 8; grounded = false; }
   verticalVelocity -= 20 * dt;
   player.position.y += verticalVelocity * dt;
   if (player.position.y <= 0) {
@@ -1174,7 +1282,7 @@ function updateFighterBars() {
     const bar = f.userData.healthGroup;
     const fill = f.userData.healthFill;
     if (!bar || !fill) continue;
-    bar.visible = f.userData.alive;
+    bar.visible = settings.showHealthBars && f.userData.alive;
     if (!f.userData.alive) continue;
     bar.quaternion.copy(camera.quaternion);
     const pct = THREE.MathUtils.clamp(f.userData.hp / f.userData.maxHp, 0, 1);
