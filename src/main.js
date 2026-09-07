@@ -306,8 +306,20 @@ function heal(target, amount) {
   pulseEffect(target.position, 0x72ffbf, 2.5, 0.35);
 }
 
-function damage(target, amount, attacker) {
+function damage(target, amount, attacker, networkApplied = false) {
   if (!target?.userData.alive || matchOver) return;
+
+  if (joinedLobby && network.connected && target.userData.isRemote && attacker === player && !networkApplied) {
+    network.sendCombatEvent({
+      kind: 'damage',
+      targetId: target.userData.networkId,
+      amount,
+      source: selectedHero.primary
+    });
+    showHitFeedback(amount);
+    return;
+  }
+
   const now = performance.now();
   let dealt = amount;
   if (target.userData.shieldUntil > now) dealt *= 0.42;
@@ -331,6 +343,12 @@ function damage(target, amount, attacker) {
     if (target === player) {
       playerDeaths++;
       respawnAt = target.userData.respawnAt;
+      if (joinedLobby && network.connected && networkApplied && attacker?.userData.isRemote) {
+        network.sendCombatEvent({
+          kind: 'death-confirmed',
+          killerId: attacker.userData.networkId
+        });
+      }
     }
   }
 }
@@ -466,6 +484,23 @@ network.on('state', msg => {
   remote.userData.hp = THREE.MathUtils.clamp(Number(msg.hp || 0), 0, remote.userData.maxHp);
   remote.userData.alive = Boolean(msg.alive);
   remote.visible = remote.userData.alive;
+});
+
+network.on('combat-event', msg => {
+  if (!matchStarted || !msg.event) return;
+
+  if (msg.event.kind === 'damage') {
+    const attacker = remoteFighters.get(msg.id) || null;
+    damage(player, Number(msg.event.amount || 0), attacker, true);
+    return;
+  }
+
+  if (msg.event.kind === 'kill-confirmed') {
+    playerKills++;
+    ultimateCharge = Math.min(100, ultimateCharge + 24);
+    const victim = remoteFighters.get(msg.event.victimId);
+    addKillFeed(`${selectedHero.name} eliminated ${victim?.userData.hero.name || 'opponent'}`);
+  }
 });
 
 network.on('host-changed', msg => {
