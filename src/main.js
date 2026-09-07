@@ -3,6 +3,7 @@ import './styles.css';
 import { HEROES, getHero } from './heroes.js';
 import { NetworkClient } from './network.js';
 import { loadSettings, saveSettings, resetSettings, keyLabel } from './settings.js';
+import { preferredTeamUp } from './teamups.js';
 
 const app = document.querySelector('#app');
 const TEAM_SIZE = 6;
@@ -31,6 +32,8 @@ let lastShot = 0;
 let abilityReadyAt = 0;
 let secondaryReadyAt = 0;
 let ultimateCharge = 0;
+let teamUpReadyAt = 0;
+let activeTeamUp = null;
 let audioCtx = null;
 let objectiveState = 'NEUTRAL';
 let settings = loadSettings();
@@ -95,6 +98,7 @@ app.innerHTML = `
       <div class="ability"><div class="key">LMB</div><div id="primaryLabel" class="label"></div></div>
       <div class="ability"><div class="key">RMB</div><div id="secondaryLabel" class="label"></div><div id="secondaryCd" class="charge">READY</div></div>
       <div class="ability"><div class="key">⇧</div><div id="abilityLabel" class="label"></div><div id="abilityCd" class="charge">READY</div></div>
+      <div class="ability teamup-ability"><div class="key">F</div><div id="teamUpLabel" class="label">NO TEAM-UP</div><div id="teamUpCd" class="charge">—</div></div>
       <div class="ability"><div class="key">Q</div><div id="ultLabel" class="label"></div><div id="ultCharge" class="charge">0%</div></div>
     </div>
     <div id="banner" class="banner"></div>
@@ -641,6 +645,7 @@ function startMatch(players = networkPlayers) {
   }
   objective.visible = selectedMode === 'domination';
   objectiveRing.visible = selectedMode === 'domination';
+  refreshTeamUp();
   applyHudHero();
   renderer.domElement.requestPointerLock();
 }
@@ -872,6 +877,7 @@ addEventListener('keydown', e => {
 
   keys[e.code] = true;
   if (e.code === settings.keybinds.ability) usePlayerAbility();
+  if (e.code === 'KeyF') useTeamUp();
   if (e.code === settings.keybinds.ultimate) useUltimate();
 });
 addEventListener('keyup', e => keys[e.code] = false);
@@ -1044,6 +1050,61 @@ function useSecondary() {
   }
   tone(160, 0.12, 0.03, 'triangle');
   showBanner((selectedHero.secondary || 'SECONDARY').toUpperCase(), 500);
+}
+
+function refreshTeamUp() {
+  if (!player) {
+    activeTeamUp = null;
+    return;
+  }
+  const teamHeroIds = fighters.filter(f => f.userData.team === player.userData.team).map(f => f.userData.hero.id);
+  activeTeamUp = preferredTeamUp(selectedHero.id, teamHeroIds);
+  teamUpReadyAt = 0;
+}
+
+function teamUpParticipants() {
+  if (!activeTeamUp || !player) return [];
+  return fighters.filter(f => f.userData.team === player.userData.team && activeTeamUp.members.includes(f.userData.hero.id));
+}
+
+function useTeamUp() {
+  if (!player?.userData.alive || !activeTeamUp) return;
+  const now = performance.now();
+  if (now < teamUpReadyAt) return;
+  const allies = teamFor(player.userData.team);
+  const enemies = teamFor(opposingTeam(player.userData.team));
+  const radius = activeTeamUp.radius || 14;
+  const participants = teamUpParticipants();
+
+  if (activeTeamUp.effectKind === 'duoHaste') {
+    participants.forEach(f => {
+      applyEffect(f, 'haste', { duration: activeTeamUp.duration, actor: player });
+      applyEffect(f, 'shield', { duration: 1600, actor: player });
+    });
+  } else if (activeTeamUp.effectKind === 'teamShield') {
+    allies.filter(f => f.position.distanceTo(player.position) <= radius)
+      .forEach(f => applyEffect(f, 'shield', { duration: activeTeamUp.duration, actor: player }));
+  } else if (activeTeamUp.effectKind === 'duoHasteShield') {
+    participants.forEach(f => {
+      applyEffect(f, 'haste', { duration: activeTeamUp.duration, actor: player });
+      applyEffect(f, 'shield', { duration: Math.min(activeTeamUp.duration, 3600), actor: player });
+    });
+  } else if (activeTeamUp.effectKind === 'teamHeal') {
+    allies.filter(f => f.position.distanceTo(player.position) <= radius).forEach(f => {
+      heal(f, f.userData.maxHp * (activeTeamUp.healFactor || 0.22), player);
+      applyEffect(f, 'shield', { duration: activeTeamUp.shieldDuration || 2200, actor: player });
+    });
+  } else if (activeTeamUp.effectKind === 'enemyDisrupt') {
+    enemies.filter(f => f.position.distanceTo(player.position) <= radius).forEach(f => {
+      applyEffect(f, 'slow', { duration: activeTeamUp.duration, actor: player });
+      applyEffect(f, 'root', { duration: 650, actor: player });
+    });
+  }
+
+  teamUpReadyAt = now + activeTeamUp.cooldown * 1000;
+  pulseEffect(player.position, selectedHero.color, radius, 0.75);
+  tone(210, 0.18, 0.045, 'triangle');
+  showBanner(activeTeamUp.name.toUpperCase(), 1200);
 }
 
 function usePlayerAbility() {
@@ -1378,6 +1439,16 @@ function updateHud(now) {
   document.querySelector('#kills').textContent = playerKills;
   document.querySelector('#deaths').textContent = playerDeaths;
   document.querySelector('#ultCharge').textContent = `${Math.floor(ultimateCharge)}%`;
+  const teamUpLabel = document.querySelector('#teamUpLabel');
+  const teamUpCd = document.querySelector('#teamUpCd');
+  if (activeTeamUp) {
+    teamUpLabel.textContent = activeTeamUp.name;
+    const teamUpRemaining = Math.max(0, (teamUpReadyAt - now) / 1000);
+    teamUpCd.textContent = teamUpRemaining > 0 ? teamUpRemaining.toFixed(1) : 'READY';
+  } else {
+    teamUpLabel.textContent = 'NO TEAM-UP';
+    teamUpCd.textContent = '—';
+  }
   const secondaryRemaining = Math.max(0, (secondaryReadyAt - now) / 1000);
   document.querySelector('#secondaryCd').textContent = secondaryRemaining > 0 ? secondaryRemaining.toFixed(1) : 'READY';
   const abilityRemaining = Math.max(0, (abilityReadyAt - now) / 1000);
