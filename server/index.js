@@ -141,7 +141,35 @@ wss.on('connection', ws => {
     }
 
     if (msg.type === 'combat-event') {
-      broadcast(lobby, { type: 'combat-event', id: ws.meta.id, event: msg.event }, ws.meta.id);
+      const event = msg.event || {};
+
+      if (event.kind === 'damage') {
+        const targetId = String(event.targetId || '');
+        const target = lobby.clients.get(targetId);
+        const amount = Number(event.amount);
+        if (!target || target.team === self.team || !Number.isFinite(amount) || amount <= 0) return;
+        send(target.ws, {
+          type: 'combat-event',
+          id: ws.meta.id,
+          event: {
+            kind: 'damage',
+            amount: Math.min(amount, 250),
+            source: String(event.source || 'attack').slice(0, 48)
+          }
+        });
+        return;
+      }
+
+      if (event.kind === 'death-confirmed') {
+        const killerId = String(event.killerId || '');
+        const killer = lobby.clients.get(killerId);
+        if (!killer || killer.team === self.team) return;
+        send(killer.ws, {
+          type: 'combat-event',
+          id: ws.meta.id,
+          event: { kind: 'kill-confirmed', victimId: ws.meta.id }
+        });
+      }
     }
   });
 
