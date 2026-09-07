@@ -46,7 +46,7 @@
 - Team-up abilities ✅ reusable pair registry + five prototype team-ups
 - Additional arenas
 - Convoy/payload and hybrid modes
-- More bot personalities/difficulty levels
+- More bot personalities/difficulty levels ✅ Easy/Normal/Hard/Expert tuning profiles
 
 ## Milestone F — Packaging/polish
 - Browser-hosted test URL ✅ GitHub Pages workflow
