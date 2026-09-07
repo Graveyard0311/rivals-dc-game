@@ -440,7 +440,9 @@ function damage(target, amount, attacker, networkApplied = false) {
     addKillFeed(`${killerName} eliminated ${target.userData.hero.name}`);
 
     if (selectedMode === 'tdm' && attacker?.userData.team) {
-      if (!joinedLobby || (network.playerId === lobbyHostId && !target.userData.isPlayer && !target.userData.isRemote)) {
+      const hostOwnsDeath = network.playerId === lobbyHostId &&
+        ((!target.userData.isPlayer && !target.userData.isRemote) || (target === player && !networkApplied));
+      if (!joinedLobby || hostOwnsDeath) {
         addTeamScore(attacker.userData.team, 1);
       }
     }
