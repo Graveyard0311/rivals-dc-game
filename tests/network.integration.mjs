@@ -97,11 +97,13 @@ try {
   assert.equal(joinedNotice.players.length, 2);
 
   const matchStartB = nextMessage(b, m => m.type === 'match-start');
-  send(a, 'start-match');
+  send(a, 'start-match', { mode: 'tdm' });
   const matchStartA = await nextMessage(a, m => m.type === 'match-start');
   const matchStartRemote = await matchStartB;
   assert.equal(matchStartA.players.length, 2);
   assert.equal(matchStartRemote.players.length, 2);
+  assert.equal(matchStartA.mode, 'tdm');
+  assert.equal(matchStartRemote.mode, 'tdm');
 
   const stateOnB = nextMessage(b, m => m.type === 'state' && m.id === helloA.playerId);
   send(a, 'state', {
@@ -204,6 +206,22 @@ try {
   assert.equal(botEffect.event.effect, 'root');
   assert.equal(botEffect.event.duration, 1400);
   assert.deepEqual(botEffect.event.sourcePosition, { x: 5, y: 0, z: -4 });
+
+  const teamKillOnA = nextMessage(a, m => m.type === 'combat-event' && m.event?.kind === 'team-kill');
+  const teamKillOnB = nextMessage(b, m => m.type === 'combat-event' && m.event?.kind === 'team-kill');
+  send(b, 'combat-event', {
+    event: {
+      kind: 'death-confirmed',
+      killerId: helloA.playerId,
+      killerTeam: 'blue',
+      sourceName: 'Superman'
+    }
+  });
+  const teamKillA = await teamKillOnA;
+  const teamKillB = await teamKillOnB;
+  assert.equal(teamKillA.event.team, 'blue');
+  assert.equal(teamKillA.event.victimId, helloB.playerId);
+  assert.equal(teamKillB.event.killerId, helloA.playerId);
 
   console.log('network integration: PASS');
 } finally {
