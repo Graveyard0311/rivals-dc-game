@@ -43,7 +43,7 @@
 - Full priority roster ✅ 33-character prototype roster / expanding
 - Individual bespoke hero kits ✅ / expanding
 - Team Deathmatch ✅
-- Team-up abilities
+- Team-up abilities ✅ reusable pair registry + five prototype team-ups
 - Additional arenas
 - Convoy/payload and hybrid modes
 - More bot personalities/difficulty levels
