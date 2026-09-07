@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import './styles.css';
 import { HEROES, getHero } from './heroes.js';
+import { NetworkClient } from './network.js';
 
 const app = document.querySelector('#app');
 const TEAM_SIZE = 6;
@@ -28,6 +29,10 @@ let secondaryReadyAt = 0;
 let ultimateCharge = 0;
 let audioCtx = null;
 let objectiveState = 'NEUTRAL';
+const network = new NetworkClient();
+let joinedLobby = false;
+let lobbyHostId = null;
+let lastNetworkStateAt = 0;
 
 app.innerHTML = `
   <div id="heroSelect" class="hero-select">
@@ -36,7 +41,14 @@ app.innerHTML = `
       <h1>RIVALS: COLLISION</h1>
       <p>Choose your hero. You enter a full 6v6 objective match and bots fill every open slot.</p>
       <div id="roster" class="roster"></div>
-      <button id="deployBtn" class="deploy">DEPLOY TO BATTLE</button>
+      <div class="network-panel">
+        <input id="playerName" maxlength="24" placeholder="Player name" value="Player">
+        <input id="lobbyCode" maxlength="6" placeholder="Lobby code">
+        <button id="createLobbyBtn" class="network-btn">CREATE PRIVATE LOBBY</button>
+        <button id="joinLobbyBtn" class="network-btn">JOIN LOBBY</button>
+        <div id="networkStatus" class="network-status">Offline mode ready</div>
+      </div>
+      <button id="deployBtn" class="deploy">DEPLOY OFFLINE BATTLE</button>
     </div>
   </div>
   <div id="hud" class="hud hidden">
@@ -73,6 +85,7 @@ for (const hero of HEROES) {
   b.innerHTML = `<span class="universe">${hero.universe}</span><strong>${hero.name}</strong><small>${hero.role} · ${hero.primary}</small>`;
   b.onclick = () => {
     selectedHero = getHero(hero.id);
+    network.setHero(selectedHero.id);
     [...rosterEl.children].forEach(x => x.classList.toggle('selected', x.dataset.hero === hero.id));
   };
   rosterEl.appendChild(b);
@@ -380,7 +393,81 @@ function applyHudHero() {
   document.querySelector('#ultLabel').textContent = h.ultimate;
 }
 
-document.querySelector('#deployBtn').onclick = startMatch;
+const networkStatus = document.querySelector('#networkStatus');
+const deployBtn = document.querySelector('#deployBtn');
+
+function setNetworkStatus(text, error = false) {
+  networkStatus.textContent = text;
+  networkStatus.classList.toggle('error', error);
+}
+
+network.on('connection', ({ connected }) => {
+  setNetworkStatus(connected ? 'Connected to private-lobby server' : 'Disconnected — offline play remains available', !connected);
+});
+
+network.on('joined', msg => {
+  joinedLobby = true;
+  lobbyHostId = msg.hostId;
+  document.querySelector('#lobbyCode').value = msg.lobbyCode;
+  const host = msg.playerId === msg.hostId;
+  setNetworkStatus(`Lobby ${msg.lobbyCode} · ${msg.players.length}/12 · ${host ? 'HOST' : msg.team.toUpperCase()}`);
+  deployBtn.textContent = host ? 'START PRIVATE MATCH' : 'WAITING FOR HOST';
+});
+
+network.on('player-joined', msg => {
+  setNetworkStatus(`Lobby ${network.lobbyCode} · ${msg.players.length}/12 players`);
+});
+
+network.on('player-left', msg => {
+  setNetworkStatus(`Lobby ${network.lobbyCode} · ${msg.players.length}/12 players`);
+});
+
+network.on('host-changed', msg => {
+  lobbyHostId = msg.hostId;
+  const host = network.playerId === lobbyHostId;
+  deployBtn.textContent = host ? 'START PRIVATE MATCH' : 'WAITING FOR HOST';
+});
+
+network.on('match-start', () => {
+  if (!matchStarted) startMatch();
+});
+
+network.on('error', msg => {
+  setNetworkStatus(msg.code === 'LOBBY_NOT_FOUND' ? 'Lobby not found' : msg.code || 'Network error', true);
+});
+
+document.querySelector('#createLobbyBtn').onclick = async () => {
+  setNetworkStatus('Connecting...');
+  try {
+    await network.createLobby({
+      name: document.querySelector('#playerName').value || 'Player',
+      heroId: selectedHero.id
+    });
+  } catch {
+    setNetworkStatus('Could not reach lobby server — offline mode still works', true);
+  }
+};
+
+document.querySelector('#joinLobbyBtn').onclick = async () => {
+  const lobbyCode = document.querySelector('#lobbyCode').value.trim().toUpperCase();
+  if (!lobbyCode) return setNetworkStatus('Enter a lobby code', true);
+  setNetworkStatus('Joining...');
+  try {
+    await network.joinLobby({
+      lobbyCode,
+      name: document.querySelector('#playerName').value || 'Player',
+      heroId: selectedHero.id
+    });
+  } catch {
+    setNetworkStatus('Could not reach lobby server — offline mode still works', true);
+  }
+};
+
+deployBtn.onclick = () => {
+  if (!joinedLobby) return startMatch();
+  if (network.playerId === lobbyHostId) network.startMatch();
+  else setNetworkStatus('Waiting for the host to start the match');
+};
 
 addEventListener('keydown', e => {
   keys[e.code] = true;
@@ -891,6 +978,16 @@ function animate() {
 
   if (matchStarted) {
     updatePlayer(dt, now);
+    if (joinedLobby && network.connected && player?.userData.alive && now - lastNetworkStateAt >= 100) {
+      lastNetworkStateAt = now;
+      network.sendState({
+        t: Date.now(),
+        position: { x: player.position.x, y: player.position.y, z: player.position.z },
+        rotationY: player.rotation.y,
+        hp: player.userData.hp,
+        alive: player.userData.alive
+      });
+    }
     updateBots(dt, now);
     updateRespawns(now);
     updateObjective(dt);
