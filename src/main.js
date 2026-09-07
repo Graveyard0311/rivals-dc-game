@@ -24,7 +24,9 @@ let verticalVelocity = 0;
 let grounded = true;
 let lastShot = 0;
 let abilityReadyAt = 0;
+let secondaryReadyAt = 0;
 let ultimateCharge = 0;
+let audioCtx = null;
 let objectiveState = 'NEUTRAL';
 
 app.innerHTML = `
@@ -54,6 +56,7 @@ app.innerHTML = `
     </div>
     <div class="abilities">
       <div class="ability"><div class="key">LMB</div><div id="primaryLabel" class="label"></div></div>
+      <div class="ability"><div class="key">RMB</div><div id="secondaryLabel" class="label"></div><div id="secondaryCd" class="charge">READY</div></div>
       <div class="ability"><div class="key">⇧</div><div id="abilityLabel" class="label"></div><div id="abilityCd" class="charge">READY</div></div>
       <div class="ability"><div class="key">Q</div><div id="ultLabel" class="label"></div><div id="ultCharge" class="charge">0%</div></div>
     </div>
@@ -242,7 +245,8 @@ function makeFighter(hero, team, isPlayer = false) {
     hero, team, body, hp: hero.hp, maxHp: hero.hp, alive: true, isPlayer,
     respawnAt: 0, lastAttack: 0, target: null, abilityReadyAt: 0,
     ultReadyAt: 18000 + Math.random() * 9000, shieldUntil: 0,
-    stunnedUntil: 0, empoweredUntil: 0, healthGroup, healthFill
+    stunnedUntil: 0, empoweredUntil: 0, rootedUntil: 0, slowedUntil: 0, hasteUntil: 0,
+    flankSign: Math.random() < 0.5 ? -1 : 1, healthGroup, healthFill
   };
   scene.add(g);
   return g;
@@ -267,6 +271,9 @@ function resetFighter(f, index = 0) {
   f.userData.shieldUntil = 0;
   f.userData.stunnedUntil = 0;
   f.userData.empoweredUntil = 0;
+  f.userData.rootedUntil = 0;
+  f.userData.slowedUntil = 0;
+  f.userData.hasteUntil = 0;
 }
 
 function addKillFeed(text) {
@@ -368,6 +375,7 @@ function applyHudHero() {
   document.querySelector('#heroRole').textContent = `${h.universe} · ${h.role}`;
   document.querySelector('#maxHp').textContent = h.hp;
   document.querySelector('#primaryLabel').textContent = h.primary;
+  document.querySelector('#secondaryLabel').textContent = h.secondary || 'Secondary';
   document.querySelector('#abilityLabel').textContent = h.ability;
   document.querySelector('#ultLabel').textContent = h.ultimate;
 }
@@ -387,7 +395,33 @@ addEventListener('mousemove', e => {
   }
 });
 renderer.domElement.addEventListener('click', () => matchStarted && renderer.domElement.requestPointerLock());
-addEventListener('mousedown', e => e.button === 0 && matchStarted && playerShoot());
+addEventListener('mousedown', e => {
+  if (!matchStarted) return;
+  if (e.button === 0) playerShoot();
+  if (e.button === 2) useSecondary();
+});
+addEventListener('contextmenu', e => matchStarted && e.preventDefault());
+
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+function tone(freq = 220, duration = 0.055, gain = 0.025, type = 'sine') {
+  try {
+    const ctx = ensureAudio();
+    const osc = ctx.createOscillator();
+    const amp = ctx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    amp.gain.setValueAtTime(gain, ctx.currentTime);
+    amp.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration);
+    osc.connect(amp).connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + duration);
+  } catch {}
+}
 
 function playerForward() {
   return new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
@@ -398,6 +432,7 @@ function playerShoot() {
   const now = performance.now();
   if (now - lastShot < selectedHero.fireRate * 1000) return;
   lastShot = now;
+  tone(selectedHero.attackType === 'melee' ? 130 : 280, 0.045, 0.018, selectedHero.attackType === 'melee' ? 'square' : 'sawtooth');
 
   const attackType = selectedHero.attackType || 'beam';
   const enemies = fighters.filter(f => f.userData.team === 'red' && f.userData.alive);
@@ -455,7 +490,8 @@ function activateAbility(actor, kind, isHuman = false) {
     if (isHuman) dir = playerForward();
     else if (actor.userData.target) dir = actor.userData.target.position.clone().sub(actor.position).setY(0).normalize();
     else dir = new THREE.Vector3(0, 0, actor.userData.team === 'blue' ? -1 : 1);
-    actor.position.addScaledVector(dir, kind === 'blink' ? 8.5 : 6.5);
+    const dash = dir.clone().multiplyScalar(kind === 'blink' ? 8.5 : 6.5);
+    moveWithCollision(actor, dash);
     pulseEffect(actor.position, hero.color, 3.2, 0.3);
   }
   if (kind === 'shield') {
@@ -474,6 +510,54 @@ function activateAbility(actor, kind, isHuman = false) {
     enemies.filter(e => e.position.distanceTo(actor.position) < 10).forEach(e => damage(e, hero.damage * 1.4, actor));
     pulseEffect(actor.position, 0xd18cff, 8, 0.5);
   }
+}
+
+function useSecondary() {
+  if (!player?.userData.alive || performance.now() < player.userData.stunnedUntil) return;
+  const now = performance.now();
+  if (now < secondaryReadyAt) return;
+  secondaryReadyAt = now + (selectedHero.secondaryCooldown || 6) * 1000;
+  const kind = selectedHero.secondaryKind || 'heavyBeam';
+  const enemies = living('red');
+
+  if (kind === 'phase') {
+    player.userData.shieldUntil = now + 1400;
+    player.userData.hasteUntil = now + 1800;
+    pulseEffect(player.position, selectedHero.color, 4.2, 0.4);
+  } else if (kind === 'selfHaste') {
+    player.userData.hasteUntil = now + 4200;
+    player.userData.shieldUntil = Math.max(player.userData.shieldUntil, now + 1800);
+    pulseEffect(player.position, selectedHero.color, 5, 0.45);
+  } else if (kind === 'slowBurst' || kind === 'rootBurst' || kind === 'knockbackBurst') {
+    const radius = kind === 'rootBurst' ? 9 : 8;
+    for (const enemy of enemies.filter(e => e.position.distanceTo(player.position) < radius)) {
+      damage(enemy, selectedHero.damage * 0.65, player);
+      if (kind === 'slowBurst') enemy.userData.slowedUntil = now + 2600;
+      if (kind === 'rootBurst') enemy.userData.rootedUntil = now + 1500;
+      if (kind === 'knockbackBurst') {
+        const push = enemy.position.clone().sub(player.position).setY(0);
+        if (push.lengthSq()) moveWithCollision(enemy, push.normalize().multiplyScalar(3.8));
+      }
+    }
+    pulseEffect(player.position, selectedHero.color, radius, 0.55);
+  } else {
+    raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+    if (kind === 'heavyProjectile') {
+      spawnProjectile(player, raycaster.ray.direction.clone().normalize(), selectedHero.damage * 1.8, (selectedHero.projectileSpeed || 28) * 0.82);
+    } else {
+      const targets = enemies.map(f => f.userData.body);
+      const hits = raycaster.intersectObjects(targets);
+      if (hits.length) {
+        const target = fighters.find(f => f.userData.body === hits[0].object);
+        if (target && player.position.distanceTo(target.position) <= selectedHero.range + 7) {
+          damage(target, selectedHero.damage * 1.65, player);
+          pulseEffect(target.position, selectedHero.color, 2.2, 0.3);
+        }
+      }
+    }
+  }
+  tone(160, 0.12, 0.03, 'triangle');
+  showBanner((selectedHero.secondary || 'SECONDARY').toUpperCase(), 500);
 }
 
 function usePlayerAbility() {
@@ -554,6 +638,28 @@ function updateBotAbility(bot, now) {
   }
 }
 
+const coverPoints = [
+  new THREE.Vector3(-21,0,-11), new THREE.Vector3(-9,0,-11), new THREE.Vector3(9,0,-12), new THREE.Vector3(20,0,-12),
+  new THREE.Vector3(-25,0,9), new THREE.Vector3(-13,0,9), new THREE.Vector3(13,0,10), new THREE.Vector3(24,0,10),
+  new THREE.Vector3(-11,0,3), new THREE.Vector3(-11,0,-4), new THREE.Vector3(11,0,3), new THREE.Vector3(11,0,-4)
+];
+
+function bestCoverPoint(bot, target) {
+  if (!target) return null;
+  let best = null;
+  let score = Infinity;
+  for (const p of coverPoints) {
+    if (overlapsWorld(p, 0.8)) continue;
+    const travel = bot.position.distanceTo(p);
+    if (travel > 22) continue;
+    const safety = target.position.distanceTo(p);
+    const objectivePenalty = Math.max(0, p.length() - 24) * 0.35;
+    const s = travel - safety * 0.55 + objectivePenalty;
+    if (s < score) { score = s; best = p; }
+  }
+  return best;
+}
+
 function updateBots(dt, now) {
   for (const bot of fighters) {
     if (bot.userData.isPlayer || !bot.userData.alive || matchOver || now < bot.userData.stunnedUntil) continue;
@@ -565,13 +671,17 @@ function updateBots(dt, now) {
     const point = new THREE.Vector3(0, 0, 0);
     let desired = point.clone().sub(bot.position);
 
-    if (hero.role === 'Strategist') {
+    const hpPct = bot.userData.hp / bot.userData.maxHp;
+    if (hpPct < 0.36 && target) {
+      const cover = bestCoverPoint(bot, target);
+      if (cover) desired = cover.clone().sub(bot.position);
+    } else if (hero.role === 'Strategist') {
       const low = lowestAlly(bot);
       if (low && low.userData.hp / low.userData.maxHp < 0.72) desired = low.position.clone().sub(bot.position);
       else desired.multiplyScalar(0.75);
     } else if (hero.role === 'Duelist' && target) {
       const side = new THREE.Vector3(-(target.position.z - bot.position.z), 0, target.position.x - bot.position.x).normalize();
-      desired = target.position.clone().sub(bot.position).addScaledVector(side, bot.userData.team === 'blue' ? 4 : -4);
+      desired = target.position.clone().sub(bot.position).addScaledVector(side, 5.5 * bot.userData.flankSign);
     } else if (target && bot.position.distanceTo(target.position) < 14) {
       desired = target.position.clone().sub(bot.position);
     }
@@ -583,7 +693,12 @@ function updateBots(dt, now) {
       bot.lookAt(target.position.x, bot.position.y, target.position.z);
     }
 
-    if (desired.lengthSq() > 0.04) moveWithCollision(bot, desired.normalize().multiplyScalar(hero.speed * (hero.role === 'Duelist' ? 0.58 : 0.5) * dt));
+    if (now >= bot.userData.rootedUntil && desired.lengthSq() > 0.04) {
+      let botSpeed = hero.speed * (hero.role === 'Duelist' ? 0.58 : 0.5);
+      if (now < bot.userData.slowedUntil) botSpeed *= 0.58;
+      if (now < bot.userData.hasteUntil) botSpeed *= 1.28;
+      moveWithCollision(bot, desired.normalize().multiplyScalar(botSpeed * dt));
+    }
 
     if (target) {
       const dist = bot.position.distanceTo(target.position);
@@ -666,8 +781,10 @@ function updatePlayer(dt, now) {
   if (keys.KeyA) move.sub(right);
   if (move.lengthSq()) move.normalize();
 
-  const speedBoost = player.userData.empoweredUntil > now ? 1.22 : 1;
-  moveWithCollision(player, move.multiplyScalar(selectedHero.speed * speedBoost * dt));
+  let speedBoost = player.userData.empoweredUntil > now ? 1.22 : 1;
+  if (player.userData.hasteUntil > now) speedBoost *= 1.32;
+  if (player.userData.slowedUntil > now) speedBoost *= 0.58;
+  if (player.userData.rootedUntil <= now) moveWithCollision(player, move.multiplyScalar(selectedHero.speed * speedBoost * dt));
 
   if (keys.Space && grounded) { verticalVelocity = 8; grounded = false; }
   verticalVelocity -= 20 * dt;
@@ -753,6 +870,8 @@ function updateHud(now) {
   document.querySelector('#kills').textContent = playerKills;
   document.querySelector('#deaths').textContent = playerDeaths;
   document.querySelector('#ultCharge').textContent = `${Math.floor(ultimateCharge)}%`;
+  const secondaryRemaining = Math.max(0, (secondaryReadyAt - now) / 1000);
+  document.querySelector('#secondaryCd').textContent = secondaryRemaining > 0 ? secondaryRemaining.toFixed(1) : 'READY';
   const abilityRemaining = Math.max(0, (abilityReadyAt - now) / 1000);
   document.querySelector('#abilityCd').textContent = abilityRemaining > 0 ? abilityRemaining.toFixed(1) : 'READY';
 
