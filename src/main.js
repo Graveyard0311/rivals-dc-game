@@ -33,6 +33,7 @@ const network = new NetworkClient();
 let joinedLobby = false;
 let lobbyHostId = null;
 let lastNetworkStateAt = 0;
+let lastMatchStateAt = 0;
 let networkPlayers = [];
 const remoteFighters = new Map();
 
@@ -415,8 +416,13 @@ function startMatch(players = networkPlayers) {
     }
   }
 
-  fighters.filter(f => f.userData.team === 'blue').forEach((f, i) => resetFighter(f, i));
-  fighters.filter(f => f.userData.team === 'red').forEach((f, i) => resetFighter(f, i));
+  for (const team of ['blue', 'red']) {
+    let botSlot = 0;
+    fighters.filter(f => f.userData.team === team).forEach((f, i) => {
+      resetFighter(f, i);
+      if (!f.userData.isPlayer && !f.userData.isRemote) f.userData.syncSlot = botSlot++;
+    });
+  }
   applyHudHero();
   renderer.domElement.requestPointerLock();
 }
@@ -484,6 +490,36 @@ network.on('state', msg => {
   remote.userData.hp = THREE.MathUtils.clamp(Number(msg.hp || 0), 0, remote.userData.maxHp);
   remote.userData.alive = Boolean(msg.alive);
   remote.visible = remote.userData.alive;
+});
+
+network.on('match-state', msg => {
+  if (!matchStarted || network.playerId === lobbyHostId || !msg.state) return;
+  const state = msg.state;
+  blueScore = Number(state.blueScore || 0);
+  redScore = Number(state.redScore || 0);
+  objectiveState = state.objectiveState || 'CAPTURE THE NEXUS';
+  matchOver = Boolean(state.matchOver);
+
+  for (const snap of state.bots || []) {
+    const bot = fighters.find(f =>
+      !f.userData.isPlayer &&
+      !f.userData.isRemote &&
+      f.userData.team === snap.team &&
+      f.userData.syncSlot === snap.slot
+    );
+    if (!bot || !snap.position) continue;
+    bot.position.lerp(new THREE.Vector3(snap.position.x, snap.position.y, snap.position.z), 0.72);
+    bot.rotation.y = Number(snap.rotationY || 0);
+    bot.userData.hp = THREE.MathUtils.clamp(Number(snap.hp || 0), 0, bot.userData.maxHp);
+    bot.userData.alive = Boolean(snap.alive);
+    bot.visible = bot.userData.alive;
+  }
+
+  document.querySelector('#blueScore').textContent = `ALLIANCE ${Math.floor(blueScore)}`;
+  document.querySelector('#redScore').textContent = `LEGION ${Math.floor(redScore)}`;
+  document.querySelector('#objectiveState').textContent = objectiveState;
+
+  if (matchOver) showBanner(blueScore >= redScore ? 'ALLIANCE VICTORY' : 'LEGION VICTORY', 5000);
 });
 
 network.on('combat-event', msg => {
@@ -1070,9 +1106,29 @@ function animate() {
         alive: player.userData.alive
       });
     }
-    updateBots(dt, now);
+    const isNetworkHost = !joinedLobby || network.playerId === lobbyHostId;
+    if (isNetworkHost) {
+      updateBots(dt, now);
+      updateObjective(dt);
+      if (joinedLobby && network.connected && now - lastMatchStateAt >= 100) {
+        lastMatchStateAt = now;
+        const bots = fighters
+          .filter(f => !f.userData.isPlayer && !f.userData.isRemote)
+          .map(f => ({
+            slot: f.userData.syncSlot,
+            team: f.userData.team,
+            heroId: f.userData.hero.id,
+            position: { x: f.position.x, y: f.position.y, z: f.position.z },
+            rotationY: f.rotation.y,
+            hp: f.userData.hp,
+            alive: f.userData.alive
+          }));
+        network.send('match-state', {
+          state: { blueScore, redScore, objectiveState, matchOver, bots }
+        });
+      }
+    }
     updateRespawns(now);
-    updateObjective(dt);
     updateHud(now);
     updateProjectiles(dt);
     updateFighterBars();
