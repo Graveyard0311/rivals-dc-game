@@ -95,3 +95,10 @@ Three prototype arena layouts are selectable before deployment:
 - **Themyscira Ruins** — broader sightlines with temple-style cover.
 
 Arena selection changes environment palette, cover placement, collision geometry, and combat lanes. In private lobbies, the host's arena selection is synchronized to every client when the match starts.
+
+
+## Convoy mode
+
+**Convoy** is an attack/defend payload mode. Alliance escorts the payload from its start line toward Legion territory while Legion contests the escort radius. The attacking team wins by reaching 100% progress; the defending team wins if the three-minute round timer expires first.
+
+In private lobbies, the host owns payload progress, timer, bot behavior, and victory state and synchronizes them to the other clients.
