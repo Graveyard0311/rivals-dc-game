@@ -11,7 +11,7 @@
     "check:server": "node --check server/index.js",
     "test:network": "node tests/network.integration.mjs",
     "desktop": "electron desktop/main.cjs",
-    "desktop:dist": "npm run build && electron-builder"
+    "desktop:dist": "npm run build && electron-builder --publish never"
   },
   "dependencies": {
     "three": "^0.180.0",
@@ -67,5 +67,7 @@
       ],
       "category": "public.app-category.games"
     }
-  }
+  },
+  "description": "Private browser-first Marvel/DC hero shooter prototype",
+  "author": "Graveyard0311"
 }
