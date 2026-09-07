@@ -65,3 +65,10 @@ npm run desktop:dist
 Generated packages are written to `release/`.
 
 GitHub Actions also includes a `Desktop Packages` workflow that builds Windows portable, Linux AppImage, and macOS ZIP artifacts from `main`.
+
+
+## Hosted browser demo
+
+The repository includes a `Browser Demo` GitHub Actions workflow that builds and deploys the current `main` branch to GitHub Pages.
+
+The hosted Pages build supports the full offline 6v6 experience. Private multiplayer still requires a reachable WebSocket server configured through `VITE_WS_URL`; when no server is available, the UI falls back to offline play.
