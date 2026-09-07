@@ -301,6 +301,16 @@ function addKillFeed(text) {
   setTimeout(() => item.remove(), 5000);
 }
 
+function isNonHostBotReplica(target) {
+  return joinedLobby &&
+    network.connected &&
+    network.playerId !== lobbyHostId &&
+    target &&
+    !target.userData.isPlayer &&
+    !target.userData.isRemote &&
+    Number.isInteger(target.userData.syncSlot);
+}
+
 function canRouteRemoteEffect(actor, target) {
   if (!joinedLobby || !network.connected || !target?.userData.isRemote || !actor) return false;
   return actor === player || network.playerId === lobbyHostId;
@@ -308,6 +318,20 @@ function canRouteRemoteEffect(actor, target) {
 
 function applyEffect(target, effect, { duration = 0, amount = 0, actor = null, networkApplied = false, sourcePosition = null } = {}) {
   if (!target?.userData.alive) return;
+
+  if (!networkApplied && actor === player && isNonHostBotReplica(target)) {
+    network.sendCombatEvent({
+      kind: 'bot-effect',
+      team: target.userData.team,
+      slot: target.userData.syncSlot,
+      effect,
+      duration,
+      amount,
+      sourcePosition: sourcePosition || { x: player.position.x, y: player.position.y, z: player.position.z }
+    });
+    return;
+  }
+
   if (!networkApplied && canRouteRemoteEffect(actor, target)) {
     network.sendCombatEvent({
       kind: 'ability-effect',
@@ -353,6 +377,19 @@ function heal(target, amount, actor = null, networkApplied = false) {
 
 function damage(target, amount, attacker, networkApplied = false) {
   if (!target?.userData.alive || matchOver) return;
+
+  if (!networkApplied && attacker === player && isNonHostBotReplica(target)) {
+    network.sendCombatEvent({
+      kind: 'bot-damage',
+      team: target.userData.team,
+      slot: target.userData.syncSlot,
+      amount,
+      source: selectedHero.primary,
+      sourceName: selectedHero.name
+    });
+    showHitFeedback(amount);
+    return;
+  }
 
   if (joinedLobby && network.connected && target.userData.isRemote && !networkApplied &&
       (attacker === player || (network.playerId === lobbyHostId && attacker && !attacker.userData.isRemote))) {
@@ -588,6 +625,40 @@ network.on('combat-event', msg => {
       networkApplied: true,
       sourcePosition: msg.event.sourcePosition || null
     });
+    return;
+  }
+
+  if (msg.event.kind === 'bot-damage' && network.playerId === lobbyHostId) {
+    const bot = fighters.find(f =>
+      !f.userData.isPlayer &&
+      !f.userData.isRemote &&
+      f.userData.team === msg.event.team &&
+      f.userData.syncSlot === Number(msg.event.slot)
+    );
+    if (bot) {
+      const attacker = remoteFighters.get(msg.id) || null;
+      damage(bot, Number(msg.event.amount || 0), attacker, true);
+    }
+    return;
+  }
+
+  if (msg.event.kind === 'bot-effect' && network.playerId === lobbyHostId) {
+    const bot = fighters.find(f =>
+      !f.userData.isPlayer &&
+      !f.userData.isRemote &&
+      f.userData.team === msg.event.team &&
+      f.userData.syncSlot === Number(msg.event.slot)
+    );
+    if (bot) {
+      const attacker = remoteFighters.get(msg.id) || null;
+      applyEffect(bot, msg.event.effect, {
+        duration: Number(msg.event.duration || 0),
+        amount: Number(msg.event.amount || 0),
+        actor: attacker,
+        networkApplied: true,
+        sourcePosition: msg.event.sourcePosition || null
+      });
+    }
     return;
   }
 

@@ -32,7 +32,7 @@
 ## Milestone D — Two-person private demo — in progress
 - Multiplayer session/lobby ✅ foundation
 - Two human clients in the same match ✅ transform/health replication
-- Authoritative match state ✅ host-authoritative bots/objective; human HP remains owner-applied
+- Authoritative match state ✅ host-authoritative bots/objective/combat; human HP remains owner-applied
 - Bots fill every unused slot ✅
 - Join/leave/reconnect behavior ✅ foundation
 - Networked damage ✅ owner-applied validated relay
