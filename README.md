@@ -8,6 +8,7 @@ Private, browser-first Marvel/DC hero-shooter demo.
 - 6v6 match population
 - One human player with bots filling the remaining slots
 - Third-person movement and camera
+- Persistent FOV, mouse sensitivity, volume, reduced-shake and keybind settings
 - Primary and secondary attacks
 - Hero-specific health, damage, range, movement speed, fire rate, secondary, ability and ultimate data
 - Bot target acquisition, cover/flank movement and combat
@@ -25,7 +26,7 @@ Private, browser-first Marvel/DC hero-shooter demo.
 - Right Mouse — secondary action
 - Shift — mobility ability
 - Q — ultimate at 100%
-- Space — jump
+- Space — jump (default; movement/jump/ability/ultimate keyboard binds are remappable)
 
 ## Run locally
 
