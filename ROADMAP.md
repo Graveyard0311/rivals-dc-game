@@ -31,9 +31,9 @@
 
 ## Milestone D — Two-person private demo — in progress
 - Multiplayer session/lobby ✅ foundation
-- Two human clients in the same match
+- Two human clients in the same match ✅ transform/health replication
 - Authoritative match state — next
-- Bots fill every unused slot
+- Bots fill every unused slot ✅
 - Join/leave/reconnect behavior ✅ foundation
 - Networked damage, abilities and objective state — next
 
