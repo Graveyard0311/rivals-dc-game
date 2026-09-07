@@ -11,6 +11,8 @@ const app = document.querySelector('#app');
 const TEAM_SIZE = 6;
 const DOMINATION_SCORE_TO_WIN = 100;
 const TDM_SCORE_TO_WIN = 30;
+const CONVOY_SECONDS = 180;
+const CONVOY_RADIUS = 6;
 const RESPAWN_SECONDS = 5;
 const BLUE_SPAWN = new THREE.Vector3(0, 0, 28);
 const RED_SPAWN = new THREE.Vector3(0, 0, -28);
@@ -24,6 +26,9 @@ let matchStarted = false;
 let matchOver = false;
 let blueScore = 0;
 let redScore = 0;
+let convoyProgress = 0;
+let convoyTimeRemaining = CONVOY_SECONDS;
+let convoyEndsAt = 0;
 let playerDeaths = 0;
 let playerKills = 0;
 let respawnAt = 0;
@@ -59,6 +64,7 @@ app.innerHTML = `
       <div class="mode-select">
         <button class="mode-option selected" data-mode="domination"><strong>DOMINATION</strong><small>Capture and hold the Nexus · First to 100</small></button>
         <button class="mode-option" data-mode="tdm"><strong>TEAM DEATHMATCH</strong><small>Eliminations score · First to 30</small></button>
+        <button class="mode-option" data-mode="convoy"><strong>CONVOY</strong><small>Alliance escorts · Legion defends · 3:00</small></button>
       </div>
       <div class="difficulty-select">
         <label for="botDifficulty">BOT DIFFICULTY</label>
@@ -160,7 +166,7 @@ renderSettings();
 
 document.querySelectorAll('.mode-option').forEach(button => {
   button.onclick = () => {
-    selectedMode = button.dataset.mode === 'tdm' ? 'tdm' : 'domination';
+    selectedMode = ['domination', 'tdm', 'convoy'].includes(button.dataset.mode) ? button.dataset.mode : 'domination';
     document.querySelectorAll('.mode-option').forEach(x => x.classList.toggle('selected', x === button));
   };
 });
@@ -329,6 +335,27 @@ const objectiveRing = new THREE.Mesh(
 objectiveRing.rotation.x = Math.PI / 2;
 objectiveRing.position.y = 0.43;
 scene.add(objectiveRing);
+
+const payload = new THREE.Group();
+const payloadBody = new THREE.Mesh(
+  new THREE.BoxGeometry(3.2, 1.35, 4.2),
+  new THREE.MeshStandardMaterial({ color: 0x4d86c6, emissive: 0x183f70, emissiveIntensity: 1.1, metalness: 0.55, roughness: 0.32 })
+);
+payloadBody.position.y = 1.05;
+payloadBody.castShadow = true;
+const payloadCore = new THREE.Mesh(
+  new THREE.SphereGeometry(0.52, 16, 12),
+  new THREE.MeshBasicMaterial({ color: 0x8dd9ff })
+);
+payloadCore.position.set(0, 1.35, 0);
+payload.add(payloadBody, payloadCore);
+payload.visible = false;
+scene.add(payload);
+
+function updatePayloadTransform() {
+  payload.position.set(0, 0, 20 - convoyProgress * 0.4);
+}
+updatePayloadTransform();
 
 const effects = [];
 const projectiles = [];
@@ -663,6 +690,10 @@ function startMatch(players = networkPlayers) {
   matchOver = false;
   blueScore = 0;
   redScore = 0;
+  convoyProgress = 0;
+  convoyTimeRemaining = CONVOY_SECONDS;
+  convoyEndsAt = performance.now() + CONVOY_SECONDS * 1000;
+  updatePayloadTransform();
   playerKills = 0;
   playerDeaths = 0;
   ultimateCharge = 0;
@@ -699,6 +730,7 @@ function startMatch(players = networkPlayers) {
   }
   objective.visible = selectedMode === 'domination';
   objectiveRing.visible = selectedMode === 'domination';
+  payload.visible = selectedMode === 'convoy';
   refreshTeamUp();
   applyHudHero();
   renderer.domElement.requestPointerLock();
@@ -774,6 +806,9 @@ network.on('match-state', msg => {
   const state = msg.state;
   blueScore = Number(state.blueScore || 0);
   redScore = Number(state.redScore || 0);
+  convoyProgress = THREE.MathUtils.clamp(Number(state.convoyProgress || 0), 0, 100);
+  convoyTimeRemaining = Math.max(0, Number(state.convoyTimeRemaining || CONVOY_SECONDS));
+  updatePayloadTransform();
   objectiveState = state.objectiveState || 'CAPTURE THE NEXUS';
   matchOver = Boolean(state.matchOver);
 
@@ -792,8 +827,13 @@ network.on('match-state', msg => {
     bot.visible = bot.userData.alive;
   }
 
-  document.querySelector('#blueScore').textContent = `ALLIANCE ${Math.floor(blueScore)}`;
-  document.querySelector('#redScore').textContent = `LEGION ${Math.floor(redScore)}`;
+  if (selectedMode === 'convoy') {
+    document.querySelector('#blueScore').textContent = `ALLIANCE ${Math.floor(convoyProgress)}%`;
+    document.querySelector('#redScore').textContent = `LEGION ${Math.ceil(convoyTimeRemaining)}s`;
+  } else {
+    document.querySelector('#blueScore').textContent = `ALLIANCE ${Math.floor(blueScore)}`;
+    document.querySelector('#redScore').textContent = `LEGION ${Math.floor(redScore)}`;
+  }
   document.querySelector('#objectiveState').textContent = objectiveState;
 
   if (matchOver) showBanner(blueScore >= redScore ? 'ALLIANCE VICTORY' : 'LEGION VICTORY', 5000);
@@ -879,7 +919,7 @@ network.on('host-changed', msg => {
 
 network.on('match-start', msg => {
   networkPlayers = msg.players || networkPlayers;
-  selectedMode = msg.mode === 'tdm' ? 'tdm' : 'domination';
+  selectedMode = ['domination', 'tdm', 'convoy'].includes(msg.mode) ? msg.mode : 'domination';
   selectedBotDifficulty = ['easy', 'normal', 'hard', 'expert'].includes(msg.difficulty) ? msg.difficulty : 'normal';
   selectedArena = ['nexus', 'gotham', 'themyscira'].includes(msg.arena) ? msg.arena : 'nexus';
   applyArenaPreset(selectedArena);
@@ -1275,7 +1315,7 @@ function updateBots(dt, now) {
     bot.userData.target = target;
     updateBotAbility(bot, now);
 
-    const point = new THREE.Vector3(0, 0, 0);
+    const point = selectedMode === 'convoy' ? payload.position.clone().setY(0) : new THREE.Vector3(0, 0, 0);
     let desired = point.clone().sub(bot.position);
 
     const hpPct = bot.userData.hp / bot.userData.maxHp;
@@ -1336,7 +1376,49 @@ function updateRespawns(now) {
   }
 }
 
+function updateConvoy(dt, now) {
+  convoyTimeRemaining = Math.max(0, (convoyEndsAt - now) / 1000);
+  const payloadPos = payload.position;
+  const blueOn = living('blue').filter(f => f.position.distanceTo(payloadPos) < CONVOY_RADIUS).length;
+  const redOn = living('red').filter(f => f.position.distanceTo(payloadPos) < CONVOY_RADIUS).length;
+
+  if (blueOn > 0 && redOn === 0) {
+    const escortBoost = Math.min(1.75, 1 + (blueOn - 1) * 0.16);
+    convoyProgress = Math.min(100, convoyProgress + dt * 4.8 * escortBoost);
+    updatePayloadTransform();
+    objectiveState = `ESCORTING · ${Math.floor(convoyProgress)}% · ${Math.ceil(convoyTimeRemaining)}s`;
+  } else if (blueOn > 0 && redOn > 0) {
+    objectiveState = `PAYLOAD CONTESTED · ${Math.ceil(convoyTimeRemaining)}s`;
+  } else {
+    objectiveState = `ESCORT THE PAYLOAD · ${Math.floor(convoyProgress)}% · ${Math.ceil(convoyTimeRemaining)}s`;
+  }
+
+  blueScore = convoyProgress;
+  redScore = Math.max(0, 100 - convoyProgress);
+  document.querySelector('#blueScore').textContent = `ALLIANCE ${Math.floor(convoyProgress)}%`;
+  document.querySelector('#redScore').textContent = `LEGION ${Math.ceil(convoyTimeRemaining)}s`;
+  document.querySelector('#objectiveState').textContent = objectiveState;
+
+  if (!matchOver && convoyProgress >= 100) {
+    matchOver = true;
+    blueScore = 100;
+    redScore = 0;
+    showBanner('ALLIANCE VICTORY', 5000);
+    setTimeout(() => location.reload(), 5200);
+  } else if (!matchOver && convoyTimeRemaining <= 0) {
+    matchOver = true;
+    redScore = 100;
+    showBanner('LEGION VICTORY', 5000);
+    setTimeout(() => location.reload(), 5200);
+  }
+}
+
 function updateObjective(dt) {
+  if (selectedMode === 'convoy') {
+    updateConvoy(dt, performance.now());
+    return;
+  }
+
   if (selectedMode === 'tdm') {
     objectiveState = `TEAM DEATHMATCH · FIRST TO ${TDM_SCORE_TO_WIN}`;
     document.querySelector('#blueScore').textContent = `ALLIANCE ${Math.floor(blueScore)}`;
@@ -1558,7 +1640,7 @@ function animate() {
             alive: f.userData.alive
           }));
         network.send('match-state', {
-          state: { blueScore, redScore, objectiveState, matchOver, bots }
+          state: { blueScore, redScore, objectiveState, matchOver, convoyProgress, convoyTimeRemaining, bots }
         });
       }
     }
