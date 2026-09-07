@@ -32,11 +32,12 @@
 ## Milestone D — Two-person private demo — in progress
 - Multiplayer session/lobby ✅ foundation
 - Two human clients in the same match ✅ transform/health replication
-- Authoritative match state — next (current human HP is owner-applied)
+- Authoritative match state ✅ host-authoritative bots/objective; human HP remains owner-applied
 - Bots fill every unused slot ✅
 - Join/leave/reconnect behavior ✅ foundation
 - Networked damage ✅ owner-applied validated relay
-- Networked abilities and objective state — next
+- Networked objective state ✅
+- Networked abilities — next
 
 ## Milestone E — Content expansion
 - Full priority roster ✅ 33-character prototype roster / expanding

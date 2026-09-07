@@ -140,6 +140,32 @@ wss.on('connection', ws => {
       return;
     }
 
+    if (msg.type === 'match-state') {
+      if (lobby.hostId !== ws.meta.id) return;
+      const state = msg.state || {};
+      const bots = Array.isArray(state.bots) ? state.bots.slice(0, 12).map(bot => ({
+        slot: Number(bot.slot),
+        team: bot.team === 'red' ? 'red' : 'blue',
+        heroId: String(bot.heroId || 'superman').slice(0, 48),
+        position: bot.position,
+        rotationY: Number(bot.rotationY || 0),
+        hp: Math.max(0, Number(bot.hp || 0)),
+        alive: Boolean(bot.alive)
+      })) : [];
+      broadcast(lobby, {
+        type: 'match-state',
+        hostId: ws.meta.id,
+        state: {
+          blueScore: Math.max(0, Math.min(100, Number(state.blueScore || 0))),
+          redScore: Math.max(0, Math.min(100, Number(state.redScore || 0))),
+          objectiveState: String(state.objectiveState || 'CAPTURE THE NEXUS').slice(0, 64),
+          matchOver: Boolean(state.matchOver),
+          bots
+        }
+      }, ws.meta.id);
+      return;
+    }
+
     if (msg.type === 'combat-event') {
       const event = msg.event || {};
 
