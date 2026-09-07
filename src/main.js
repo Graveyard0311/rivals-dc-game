@@ -436,8 +436,15 @@ function damage(target, amount, attacker, networkApplied = false) {
     target.userData.alive = false;
     target.visible = false;
     target.userData.respawnAt = now + RESPAWN_SECONDS * 1000;
-    const killerName = attacker?.userData.hero.name || 'Nexus';
+    const killerName = attacker?.userData.hero.name || target.userData.lastNetworkSourceName || 'Nexus';
     addKillFeed(`${killerName} eliminated ${target.userData.hero.name}`);
+
+    if (selectedMode === 'tdm' && attacker?.userData.team) {
+      if (!joinedLobby || (network.playerId === lobbyHostId && !target.userData.isPlayer && !target.userData.isRemote)) {
+        addTeamScore(attacker.userData.team, 1);
+      }
+    }
+
     if (attacker === player) {
       playerKills++;
       ultimateCharge = Math.min(100, ultimateCharge + 24);
@@ -445,10 +452,12 @@ function damage(target, amount, attacker, networkApplied = false) {
     if (target === player) {
       playerDeaths++;
       respawnAt = target.userData.respawnAt;
-      if (joinedLobby && network.connected && networkApplied && attacker?.userData.isRemote) {
+      if (joinedLobby && network.connected && networkApplied) {
         network.sendCombatEvent({
           kind: 'death-confirmed',
-          killerId: attacker.userData.networkId
+          killerId: target.userData.lastNetworkAttackerId || attacker?.userData.networkId || '',
+          killerTeam: target.userData.lastNetworkSourceTeam || attacker?.userData.team || null,
+          sourceName: target.userData.lastNetworkSourceName || attacker?.userData.hero?.name || 'Opponent'
         });
       }
     }
@@ -639,6 +648,9 @@ network.on('combat-event', msg => {
 
   if (msg.event.kind === 'damage') {
     const attacker = remoteFighters.get(msg.id) || null;
+    player.userData.lastNetworkAttackerId = msg.id || null;
+    player.userData.lastNetworkSourceTeam = msg.event.sourceTeam || attacker?.userData.team || null;
+    player.userData.lastNetworkSourceName = msg.event.sourceName || attacker?.userData.hero?.name || 'Opponent';
     damage(player, Number(msg.event.amount || 0), attacker, true);
     return;
   }
@@ -689,11 +701,17 @@ network.on('combat-event', msg => {
     return;
   }
 
-  if (msg.event.kind === 'kill-confirmed') {
-    playerKills++;
-    ultimateCharge = Math.min(100, ultimateCharge + 24);
-    const victim = remoteFighters.get(msg.event.victimId);
-    addKillFeed(`${selectedHero.name} eliminated ${victim?.userData.hero.name || 'opponent'}`);
+  if (msg.event.kind === 'team-kill') {
+    if (selectedMode === 'tdm' && network.playerId === lobbyHostId) {
+      addTeamScore(msg.event.team, 1);
+    }
+    if (msg.event.killerId === network.playerId) {
+      playerKills++;
+      ultimateCharge = Math.min(100, ultimateCharge + 24);
+      const victim = remoteFighters.get(msg.event.victimId);
+      addKillFeed(`${selectedHero.name} eliminated ${victim?.userData.hero.name || 'opponent'}`);
+    }
+    return;
   }
 });
 
@@ -1093,16 +1111,31 @@ function updateRespawns(now) {
 }
 
 function updateObjective(dt) {
+  if (selectedMode === 'tdm') {
+    objectiveState = `TEAM DEATHMATCH · FIRST TO ${TDM_SCORE_TO_WIN}`;
+    document.querySelector('#blueScore').textContent = `ALLIANCE ${Math.floor(blueScore)}`;
+    document.querySelector('#redScore').textContent = `LEGION ${Math.floor(redScore)}`;
+    document.querySelector('#objectiveState').textContent = objectiveState;
+
+    if (!matchOver && (blueScore >= TDM_SCORE_TO_WIN || redScore >= TDM_SCORE_TO_WIN)) {
+      matchOver = true;
+      const winningBlue = blueScore >= TDM_SCORE_TO_WIN;
+      showBanner(winningBlue ? 'ALLIANCE VICTORY' : 'LEGION VICTORY', 5000);
+      setTimeout(() => location.reload(), 5200);
+    }
+    return;
+  }
+
   const blueOn = living('blue').filter(f => Math.hypot(f.position.x, f.position.z) < OBJECTIVE_RADIUS).length;
   const redOn = living('red').filter(f => Math.hypot(f.position.x, f.position.z) < OBJECTIVE_RADIUS).length;
 
   if (blueOn > redOn) {
-    blueScore = Math.min(SCORE_TO_WIN, blueScore + dt * (2.25 + blueOn * 0.3));
+    blueScore = Math.min(DOMINATION_SCORE_TO_WIN, blueScore + dt * (2.25 + blueOn * 0.3));
     objectiveState = `ALLIANCE CAPTURING · ${blueOn}`;
     objective.material.color.set(0x3c9dff);
     objective.material.emissive.set(0x1676d2);
   } else if (redOn > blueOn) {
-    redScore = Math.min(SCORE_TO_WIN, redScore + dt * (2.25 + redOn * 0.3));
+    redScore = Math.min(DOMINATION_SCORE_TO_WIN, redScore + dt * (2.25 + redOn * 0.3));
     objectiveState = `LEGION CAPTURING · ${redOn}`;
     objective.material.color.set(0xff536d);
     objective.material.emissive.set(0xb9213d);
@@ -1120,8 +1153,8 @@ function updateObjective(dt) {
   document.querySelector('#redScore').textContent = `LEGION ${Math.floor(redScore)}`;
   document.querySelector('#objectiveState').textContent = objectiveState;
 
-  if (!matchOver && (blueScore >= SCORE_TO_WIN || redScore >= SCORE_TO_WIN)) {
-    const winningBlue = blueScore >= SCORE_TO_WIN;
+  if (!matchOver && (blueScore >= DOMINATION_SCORE_TO_WIN || redScore >= DOMINATION_SCORE_TO_WIN)) {
+    const winningBlue = blueScore >= DOMINATION_SCORE_TO_WIN;
     const contested = blueOn > 0 && redOn > 0;
     if (contested) {
       document.querySelector('#objectiveState').textContent = 'OVERTIME · CONTESTED';
