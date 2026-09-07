@@ -4,7 +4,7 @@ Private, browser-first Marvel/DC hero-shooter demo.
 
 ## Current playable scope
 
-- Hero-select screen with Marvel and DC roster entries
+- Hero-select screen with 33 Marvel/DC roster entries
 - 6v6 match population
 - One human player with bots filling the remaining slots
 - Third-person movement and camera
@@ -50,4 +50,4 @@ Current network milestone supports lobby creation/joining, team assignment, host
 
 ## Direction
 
-This is the foundation for the larger browser/downloadable hero shooter: human players occupy available slots and bots fill the rest. Networking, richer individual hero kits, additional maps/modes, animation/audio, improved navigation AI and downloadable packaging are subsequent milestones.
+This is the foundation for the larger browser/downloadable hero shooter: human players occupy available slots and bots fill the rest. Networking authority, richer individual hero kits, additional maps/modes, animation/model polish and downloadable packaging are subsequent milestones.

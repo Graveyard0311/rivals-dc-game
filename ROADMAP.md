@@ -39,7 +39,7 @@
 - Networked abilities and objective state — next
 
 ## Milestone E — Content expansion
-- Full priority roster
+- Full priority roster ✅ 33-character prototype roster / expanding
 - Individual bespoke hero kits ✅ / expanding
 - Team-up abilities
 - Additional arenas
