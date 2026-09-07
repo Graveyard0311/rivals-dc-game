@@ -214,7 +214,10 @@ wss.on('connection', ws => {
             duration,
             amount,
             sourceName: String(event.sourceName || self.name || 'Ally').slice(0, 48),
-            sourceTeam
+            sourceTeam,
+            sourcePosition: event.sourcePosition && Number.isFinite(Number(event.sourcePosition.x)) && Number.isFinite(Number(event.sourcePosition.z))
+              ? { x: Number(event.sourcePosition.x), y: Number(event.sourcePosition.y || 0), z: Number(event.sourcePosition.z) }
+              : null
           }
         });
         return;
