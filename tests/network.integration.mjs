@@ -171,6 +171,40 @@ try {
   assert.equal(effect.event.duration, 2600);
   assert.deepEqual(effect.event.sourcePosition, { x: 1, y: 0, z: 1 });
 
+  const botDamageOnHost = nextMessage(a, m => m.type === 'combat-event' && m.event?.kind === 'bot-damage');
+  send(b, 'combat-event', {
+    event: {
+      kind: 'bot-damage',
+      team: 'blue',
+      slot: 0,
+      amount: 77,
+      source: 'Necrosword',
+      sourceName: 'Gorr the God Butcher'
+    }
+  });
+  const botDamage = await botDamageOnHost;
+  assert.equal(botDamage.id, helloB.playerId);
+  assert.equal(botDamage.event.team, 'blue');
+  assert.equal(botDamage.event.slot, 0);
+  assert.equal(botDamage.event.amount, 77);
+
+  const botEffectOnHost = nextMessage(a, m => m.type === 'combat-event' && m.event?.kind === 'bot-effect');
+  send(b, 'combat-event', {
+    event: {
+      kind: 'bot-effect',
+      team: 'blue',
+      slot: 0,
+      effect: 'root',
+      duration: 1400,
+      amount: 0,
+      sourcePosition: { x: 5, y: 0, z: -4 }
+    }
+  });
+  const botEffect = await botEffectOnHost;
+  assert.equal(botEffect.event.effect, 'root');
+  assert.equal(botEffect.event.duration, 1400);
+  assert.deepEqual(botEffect.event.sourcePosition, { x: 5, y: 0, z: -4 });
+
   console.log('network integration: PASS');
 } finally {
   try { a?.close(); } catch {}
