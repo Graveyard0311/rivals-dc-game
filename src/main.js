@@ -5,13 +5,15 @@ import { NetworkClient } from './network.js';
 
 const app = document.querySelector('#app');
 const TEAM_SIZE = 6;
-const SCORE_TO_WIN = 100;
+const DOMINATION_SCORE_TO_WIN = 100;
+const TDM_SCORE_TO_WIN = 30;
 const RESPAWN_SECONDS = 5;
 const BLUE_SPAWN = new THREE.Vector3(0, 0, 28);
 const RED_SPAWN = new THREE.Vector3(0, 0, -28);
 const OBJECTIVE_RADIUS = 6.5;
 
 let selectedHero = HEROES.find(h => h.id === 'superman') || HEROES[0];
+let selectedMode = 'domination';
 let matchStarted = false;
 let matchOver = false;
 let blueScore = 0;
@@ -42,7 +44,11 @@ app.innerHTML = `
     <div class="select-card">
       <div class="eyebrow">PRIVATE DEMO BUILD · NEXUS ARENA</div>
       <h1>RIVALS: COLLISION</h1>
-      <p>Choose your hero. You enter a full 6v6 objective match and bots fill every open slot.</p>
+      <p>Choose your hero and match mode. Bots fill every open slot.</p>
+      <div class="mode-select">
+        <button class="mode-option selected" data-mode="domination"><strong>DOMINATION</strong><small>Capture and hold the Nexus · First to 100</small></button>
+        <button class="mode-option" data-mode="tdm"><strong>TEAM DEATHMATCH</strong><small>Eliminations score · First to 30</small></button>
+      </div>
       <div id="roster" class="roster"></div>
       <div class="network-panel">
         <input id="playerName" maxlength="24" placeholder="Player name" value="Player">
@@ -79,6 +85,13 @@ app.innerHTML = `
     <div id="killfeed" class="killfeed"></div>
   </div>
 `;
+
+document.querySelectorAll('.mode-option').forEach(button => {
+  button.onclick = () => {
+    selectedMode = button.dataset.mode === 'tdm' ? 'tdm' : 'domination';
+    document.querySelectorAll('.mode-option').forEach(x => x.classList.toggle('selected', x === button));
+  };
+});
 
 const rosterEl = document.querySelector('#roster');
 for (const hero of HEROES) {
@@ -290,6 +303,9 @@ function resetFighter(f, index = 0) {
   f.userData.rootedUntil = 0;
   f.userData.slowedUntil = 0;
   f.userData.hasteUntil = 0;
+  f.userData.lastNetworkAttackerId = null;
+  f.userData.lastNetworkSourceTeam = null;
+  f.userData.lastNetworkSourceName = null;
 }
 
 function addKillFeed(text) {
@@ -443,6 +459,15 @@ function opposingTeam(team) {
   return team === 'blue' ? 'red' : 'blue';
 }
 
+function modeScoreLimit() {
+  return selectedMode === 'tdm' ? TDM_SCORE_TO_WIN : DOMINATION_SCORE_TO_WIN;
+}
+
+function addTeamScore(team, amount = 1) {
+  if (team === 'blue') blueScore = Math.min(modeScoreLimit(), blueScore + amount);
+  if (team === 'red') redScore = Math.min(modeScoreLimit(), redScore + amount);
+}
+
 function living(team) {
   return fighters.filter(f => f.userData.team === team && f.userData.alive);
 }
@@ -508,6 +533,8 @@ function startMatch(players = networkPlayers) {
       if (!f.userData.isPlayer && !f.userData.isRemote) f.userData.syncSlot = botSlot++;
     });
   }
+  objective.visible = selectedMode === 'domination';
+  objectiveRing.visible = selectedMode === 'domination';
   applyHudHero();
   renderer.domElement.requestPointerLock();
 }
@@ -678,6 +705,7 @@ network.on('host-changed', msg => {
 
 network.on('match-start', msg => {
   networkPlayers = msg.players || networkPlayers;
+  selectedMode = msg.mode === 'tdm' ? 'tdm' : 'domination';
   if (!matchStarted) startMatch(networkPlayers);
 });
 
@@ -714,7 +742,7 @@ document.querySelector('#joinLobbyBtn').onclick = async () => {
 
 deployBtn.onclick = () => {
   if (!joinedLobby) return startMatch();
-  if (network.playerId === lobbyHostId) network.startMatch();
+  if (network.playerId === lobbyHostId) network.startMatch(selectedMode);
   else setNetworkStatus('Waiting for the host to start the match');
 };
 
