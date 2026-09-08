@@ -315,6 +315,8 @@ scene.add(new THREE.GridHelper(120, 60, 0x94b9e3, 0x566a86));
 
 const collisionBoxes = [];
 const arenaStructures = [];
+const destructibles = [];
+const destructibleById = new Map();
 function makeBox(x, z, w, h, d, color = 0x60748e) {
   const mesh = new THREE.Mesh(
     new THREE.BoxGeometry(w, h, d),
@@ -346,6 +348,121 @@ for (let i = -2; i <= 2; i++) {
   tower.add(sign);
 }
 
+for (let i = 0; i < 6; i++) {
+  const mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(1, 1, 1),
+    new THREE.MeshStandardMaterial({ color: 0x7d8ea1, roughness: 0.72, metalness: 0.16 })
+  );
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  scene.add(mesh);
+  destructibles.push({
+    index: i,
+    id: '',
+    mesh,
+    bounds: new THREE.Box3(),
+    hp: 1,
+    maxHp: 1,
+    alive: true
+  });
+}
+
+function removeCollisionBound(bounds) {
+  const index = collisionBoxes.indexOf(bounds);
+  if (index >= 0) collisionBoxes.splice(index, 1);
+}
+
+function refreshDestructibleCollision(prop) {
+  removeCollisionBound(prop.bounds);
+  if (!prop.alive) return;
+  prop.mesh.updateMatrixWorld(true);
+  prop.bounds.setFromObject(prop.mesh);
+  collisionBoxes.push(prop.bounds);
+}
+
+function applyDestructiblePreset(arena) {
+  destructibleById.clear();
+  destructibles.forEach((prop, index) => {
+    const preset = arena.destructibles?.[index];
+    if (!preset) {
+      prop.alive = false;
+      prop.mesh.visible = false;
+      removeCollisionBound(prop.bounds);
+      return;
+    }
+    const [id, x, z, w, h, d, color, hp] = preset;
+    prop.id = id;
+    prop.maxHp = hp;
+    prop.hp = hp;
+    prop.alive = true;
+    prop.mesh.visible = true;
+    prop.mesh.position.set(x, h / 2, z);
+    prop.mesh.scale.set(w, h, d);
+    prop.mesh.material.color.setHex(color);
+    prop.mesh.material.emissive?.set(0x000000);
+    destructibleById.set(id, prop);
+    refreshDestructibleCollision(prop);
+  });
+}
+
+function resetDestructibles() {
+  applyDestructiblePreset(getArena(selectedArena));
+}
+
+function setDestructibleState(prop, hp, alive) {
+  if (!prop) return;
+  prop.hp = THREE.MathUtils.clamp(Number(hp || 0), 0, prop.maxHp);
+  const shouldLive = Boolean(alive) && prop.hp > 0;
+  if (prop.alive === shouldLive && prop.mesh.visible === shouldLive) return;
+  prop.alive = shouldLive;
+  prop.mesh.visible = shouldLive;
+  refreshDestructibleCollision(prop);
+}
+
+function destructibleAtPoint(position, radius = 0.24) {
+  return destructibles.find(prop => prop.alive && prop.bounds.distanceToPoint(position) <= radius) || null;
+}
+
+function damageDestructible(prop, amount, actor = null, networkApplied = false) {
+  if (!prop?.alive || !Number.isFinite(amount) || amount <= 0) return false;
+
+  if (joinedLobby && network.connected && network.playerId !== lobbyHostId && actor === player && !networkApplied) {
+    network.sendCombatEvent({
+      kind: 'world-damage',
+      destructibleId: prop.id,
+      amount,
+      sourceName: selectedHero.name
+    });
+    showHitFeedback(amount);
+    return true;
+  }
+
+  prop.hp = Math.max(0, prop.hp - amount);
+  prop.mesh.material.emissive?.set(0xffffff);
+  setTimeout(() => prop.mesh?.material?.emissive?.set(0x000000), 65);
+
+  if (prop.hp <= 0) {
+    prop.alive = false;
+    prop.mesh.visible = false;
+    refreshDestructibleCollision(prop);
+    pulseEffect(prop.mesh.position, 0xffc27a, 5.5, 0.55);
+    if (actor === player) showBanner('COVER DESTROYED', 450);
+  }
+  return true;
+}
+
+function damageDestructiblesAlongSegment(start, end, radius, amount, actor) {
+  const line = new THREE.Line3(start.clone(), end.clone());
+  const closest = new THREE.Vector3();
+  for (const prop of destructibles) {
+    if (!prop.alive) continue;
+    line.closestPointToPoint(prop.mesh.position, true, closest);
+    if (closest.distanceTo(prop.mesh.position) <= radius + Math.max(prop.mesh.scale.x, prop.mesh.scale.z) * 0.45) {
+      damageDestructible(prop, amount, actor);
+    }
+  }
+}
+
 function applyArenaPreset(id) {
   const arena = getArena(id);
   selectedArena = arena.id;
@@ -366,6 +483,7 @@ function applyArenaPreset(id) {
     mesh.updateMatrixWorld(true);
     collisionBoxes.push(new THREE.Box3().setFromObject(mesh));
   });
+  applyDestructiblePreset(arena);
 }
 
 const objective = new THREE.Mesh(
