@@ -25,6 +25,7 @@
 - Projectile and melee attack types ✅
 - Health bars/nameplates over combatants ✅
 - Damage numbers/hit markers ✅
+- Competitive hold-Tab scoreboard ✅ synchronized human K/D + host-replicated bot K/D
 - Improved objective presentation
 - Better bot cover/flank navigation ✅ / expanding
 - Audio pass ✅ / procedural prototype
