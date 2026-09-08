@@ -1566,6 +1566,19 @@ function playerShoot() {
       if (selectedHero.resourceKind === 'speedForce') gainHeroResource(-8);
       ultimateCharge = Math.min(100, ultimateCharge + 5);
       pulseEffect(best.position, selectedHero.color, 1.8, 0.18);
+    } else {
+      let prop = null;
+      let propDist = Infinity;
+      for (const candidate of destructibles) {
+        if (!candidate.alive) continue;
+        const toProp = candidate.mesh.position.clone().sub(player.position);
+        const dist = toProp.length();
+        if (dist > radius + 1.5) continue;
+        toProp.y = 0;
+        if (!toProp.lengthSq() || forward.dot(toProp.normalize()) < 0.2) continue;
+        if (dist < propDist) { prop = candidate; propDist = dist; }
+      }
+      if (prop) damageDestructible(prop, playerDamageAmount(selectedHero.damage * 1.2), player);
     }
     return;
   }
@@ -1579,9 +1592,20 @@ function playerShoot() {
 
   const targets = enemies.map(f => f.userData.body);
   const hits = raycaster.intersectObjects(targets);
-  if (!hits.length) return;
-  const target = fighters.find(f => f.userData.body === hits[0].object);
-  if (target && player.position.distanceTo(target.position) <= selectedHero.range + 4) {
+  const propHits = raycaster.intersectObjects(destructibles.filter(p => p.alive).map(p => p.mesh));
+  const nearestFighter = hits[0] || null;
+  const nearestProp = propHits[0] || null;
+  const maxRange = selectedHero.range + 4;
+
+  if (nearestProp && nearestProp.distance <= maxRange && (!nearestFighter || nearestProp.distance < nearestFighter.distance)) {
+    const prop = destructibles.find(p => p.mesh === nearestProp.object);
+    if (prop) damageDestructible(prop, playerDamageAmount(selectedHero.damage), player);
+    return;
+  }
+
+  if (!nearestFighter) return;
+  const target = fighters.find(f => f.userData.body === nearestFighter.object);
+  if (target && player.position.distanceTo(target.position) <= maxRange) {
     damage(target, playerDamageAmount(selectedHero.damage, target), player);
     if (selectedHero.resourceKind === 'hatred') gainHeroResource(7);
     ultimateCharge = Math.min(100, ultimateCharge + 4.5);
@@ -1680,9 +1704,14 @@ function useSecondary() {
     } else {
       const targets = enemies.map(f => f.userData.body);
       const hits = raycaster.intersectObjects(targets);
-      if (hits.length) {
+      const propHits = raycaster.intersectObjects(destructibles.filter(p => p.alive).map(p => p.mesh));
+      const maxRange = selectedHero.range + 7;
+      if (propHits.length && propHits[0].distance <= maxRange && (!hits.length || propHits[0].distance < hits[0].distance)) {
+        const prop = destructibles.find(p => p.mesh === propHits[0].object);
+        if (prop) damageDestructible(prop, playerDamageAmount(selectedHero.damage * 1.65), player);
+      } else if (hits.length) {
         const target = fighters.find(f => f.userData.body === hits[0].object);
-        if (target && player.position.distanceTo(target.position) <= selectedHero.range + 7) {
+        if (target && player.position.distanceTo(target.position) <= maxRange) {
           damage(target, playerDamageAmount(selectedHero.damage * 1.65), player);
           pulseEffect(target.position, selectedHero.color, 2.2, 0.3);
         }
@@ -1757,6 +1786,7 @@ function usePlayerAbility() {
     const forward = playerForward();
     const start = player.position.clone();
     moveWithCollision(player, forward.clone().multiplyScalar(12 + heroResource * 0.04));
+    damageDestructiblesAlongSegment(start, player.position, 1.8, 130 + heroResource * 0.9, player);
     const enemies = living(opposingTeam(player.userData.team));
     for (const enemy of enemies.filter(e => e.position.distanceTo(player.position) < 5.2)) {
       damage(enemy, playerDamageAmount(70 + heroResource * 0.55, enemy), player);
@@ -2333,7 +2363,14 @@ function updateProjectiles(dt) {
     p.life -= dt;
     const step = p.velocity.clone().multiplyScalar(dt);
     const next = p.mesh.position.clone().add(step);
-    let removed = p.life <= 0 || overlapsWorld(next, 0.18);
+    const prop = destructibleAtPoint(next, 0.24);
+    let removed = p.life <= 0;
+    if (!removed && prop) {
+      damageDestructible(prop, p.damage, p.actor);
+      pulseEffect(next, p.actor.userData.hero.color, 1.2, 0.18);
+      removed = true;
+    }
+    if (!removed && overlapsWorld(next, 0.18)) removed = true;
 
     if (!removed) {
       p.mesh.position.copy(next);
