@@ -22,6 +22,7 @@
 ## Milestone C — Alpha feel pass — in progress
 - Arena/player collision ✅
 - Better hit and projectile VFX ✅ / expanding
+- Camera collision + shoulder swap ✅
 - Lightweight destructible cover ✅ host-authoritative predefined breakables
 - Projectile and melee attack types ✅
 - Health bars/nameplates over combatants ✅

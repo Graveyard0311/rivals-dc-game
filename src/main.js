@@ -45,6 +45,7 @@ let pitch = -0.12;
 let verticalVelocity = 0;
 let grounded = true;
 let cameraShake = 0;
+let shoulderSide = 1;
 let lastShot = 0;
 let abilityReadyAt = 0;
 let secondaryReadyAt = 0;
@@ -703,6 +704,12 @@ const keys = {};
 let previousGamepadButtons = [];
 let connectedGamepadId = null;
 const raycaster = new THREE.Raycaster();
+const cameraRaycaster = new THREE.Raycaster();
+
+function toggleShoulder() {
+  shoulderSide *= -1;
+  if (matchStarted) showBanner(shoulderSide > 0 ? 'RIGHT SHOULDER' : 'LEFT SHOULDER', 450);
+}
 
 function gamepadDeadzone(value, deadzone = 0.18) {
   if (Math.abs(value) <= deadzone) return 0;
@@ -737,6 +744,7 @@ function pollGamepad(dt) {
   if (pressed(5)) usePlayerAbility();
   if (pressed(4)) useTeamUp();
   if (pressed(3)) useUltimate();
+  if (pressed(11)) toggleShoulder();
 
   const scoreboardHeld = buttons[8];
   const scoreboard = document.querySelector('#scoreboard');
@@ -1488,6 +1496,7 @@ addEventListener('keydown', e => {
     document.querySelector('#scoreboard')?.classList.remove('hidden');
     renderScoreboard();
   }
+  if (e.code === 'KeyV' && !e.repeat) toggleShoulder();
   if (e.code === settings.keybinds.ability) usePlayerAbility();
   if (e.code === 'KeyF') useTeamUp();
   if (e.code === settings.keybinds.ultimate) useUltimate();
@@ -2361,8 +2370,28 @@ function updatePlayer(dt, now) {
     if (temporalHistory.length > 35) temporalHistory.shift();
   }
 
-  const camOffset = new THREE.Vector3(0, 3.15, 6.5).applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
-  camera.position.lerp(player.position.clone().add(camOffset), 1 - Math.pow(0.001, dt));
+  const cameraFocus = player.position.clone().add(new THREE.Vector3(0, 1.55, 0));
+  const camOffset = new THREE.Vector3(shoulderSide * 1.05, 3.15, 6.5)
+    .applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+  const desiredCamera = player.position.clone().add(camOffset);
+  const cameraVector = desiredCamera.clone().sub(cameraFocus);
+  const cameraDistance = cameraVector.length();
+  const cameraDirection = cameraVector.clone().normalize();
+  const cameraObstacles = [
+    ...arenaStructures,
+    ...destructibles.filter(prop => prop.alive).map(prop => prop.mesh)
+  ];
+
+  cameraRaycaster.set(cameraFocus, cameraDirection);
+  cameraRaycaster.far = cameraDistance;
+  const cameraHits = cameraRaycaster.intersectObjects(cameraObstacles, false);
+  let cameraTarget = desiredCamera;
+  if (cameraHits.length) {
+    const safeDistance = Math.max(0.85, cameraHits[0].distance - 0.35);
+    cameraTarget = cameraFocus.clone().add(cameraDirection.multiplyScalar(safeDistance));
+  }
+
+  camera.position.lerp(cameraTarget, 1 - Math.pow(0.001, dt));
   if (cameraShake > 0.001) {
     const intensity = cameraShake * (settings.reducedCameraShake ? 0.18 : 1);
     camera.position.x += (Math.random() - 0.5) * 0.14 * intensity;

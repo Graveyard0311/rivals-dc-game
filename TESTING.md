@@ -221,3 +221,12 @@ This is a repository-level GitHub Pages enablement restriction, not a game build
 4. As Juggernaut, charge through breakable cover and confirm destruction along the path.
 5. In a two-client private match, destroy cover from the non-host client and confirm the host applies the damage and both clients show the same open lane.
 6. Confirm destroyed cover resets when a fresh match or Training Range starts.
+
+
+## Camera test
+
+1. Stand with your back near a wall or intact destructible cover and rotate the camera toward the obstruction.
+2. Confirm the camera pulls forward instead of clipping through the mesh.
+3. Destroy nearby cover and confirm the camera can move through the newly opened space.
+4. Press **V** and confirm the camera swaps shoulders without changing aim direction.
+5. With a controller, click **R3** and confirm the same shoulder swap behavior.
