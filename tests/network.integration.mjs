@@ -128,7 +128,23 @@ try {
   });
   const relayedState = await stateOnB;
   assert.deepEqual(relayedState.position, { x: 4, y: 0, z: -2 });
-  assert.equal(relayedState.hp, 650);
+  assert.equal(relayedState.hp, 700);
+
+  const authorityAfterDamageB = nextMessage(b, m => m.type === 'player-authority' && m.id === helloB.playerId && m.hp === 297);
+  send(a, 'combat-event', {
+    event: {
+      kind: 'damage',
+      targetId: helloB.playerId,
+      amount: 123,
+      source: 'Heat Vision',
+      sourceName: 'Superman',
+      sourceTeam: 'blue'
+    }
+  });
+  const authorityDamage = await authorityAfterDamageB;
+  assert.equal(authorityDamage.maxHp, 420);
+  assert.equal(authorityDamage.hp, 297);
+  assert.equal(authorityDamage.alive, true);
 
   const matchStateOnB = nextMessage(b, m => m.type === 'match-state');
   send(a, 'match-state', {
@@ -166,19 +182,38 @@ try {
   assert.equal(sharedState.state.bots.length, 1);
 
   const damageOnB = nextMessage(b, m => m.type === 'combat-event' && m.event?.kind === 'damage');
+  const deathAuthorityB = nextMessage(b, m => m.type === 'player-authority' && m.id === helloB.playerId && m.alive === false);
+  const teamKillOnAFromAuthority = nextMessage(a, m => m.type === 'combat-event' && m.event?.kind === 'team-kill' && m.event?.victimId === helloB.playerId);
   send(a, 'combat-event', {
     event: {
       kind: 'damage',
       targetId: helloB.playerId,
-      amount: 123,
-      source: 'Heat Vision',
+      amount: 250,
+      source: 'Worldbreaker',
       sourceName: 'Superman',
       sourceTeam: 'blue'
     }
   });
   const damage = await damageOnB;
-  assert.equal(damage.event.amount, 123);
+  const secondDamageOnB = nextMessage(b, m => m.type === 'combat-event' && m.event?.kind === 'damage');
+  send(a, 'combat-event', {
+    event: {
+      kind: 'damage',
+      targetId: helloB.playerId,
+      amount: 80,
+      source: 'Heat Vision',
+      sourceName: 'Superman',
+      sourceTeam: 'blue'
+    }
+  });
+  await secondDamageOnB;
+  const deathAuthority = await deathAuthorityB;
+  const authoritativeKill = await teamKillOnAFromAuthority;
+  assert.equal(damage.event.amount, 250);
   assert.equal(damage.event.sourceTeam, 'blue');
+  assert.equal(deathAuthority.hp, 0);
+  assert.equal(deathAuthority.alive, false);
+  assert.equal(authoritativeKill.event.team, 'blue');
 
   const effectOnB = nextMessage(b, m => m.type === 'combat-event' && m.event?.kind === 'ability-effect');
   send(a, 'combat-event', {
@@ -232,21 +267,8 @@ try {
   assert.equal(botEffect.event.duration, 1400);
   assert.deepEqual(botEffect.event.sourcePosition, { x: 5, y: 0, z: -4 });
 
-  const teamKillOnA = nextMessage(a, m => m.type === 'combat-event' && m.event?.kind === 'team-kill');
-  const teamKillOnB = nextMessage(b, m => m.type === 'combat-event' && m.event?.kind === 'team-kill');
-  send(b, 'combat-event', {
-    event: {
-      kind: 'death-confirmed',
-      killerId: helloA.playerId,
-      killerTeam: 'blue',
-      sourceName: 'Superman'
-    }
-  });
-  const teamKillA = await teamKillOnA;
-  const teamKillB = await teamKillOnB;
-  assert.equal(teamKillA.event.team, 'blue');
-  assert.equal(teamKillA.event.victimId, helloB.playerId);
-  assert.equal(teamKillB.event.killerId, helloA.playerId);
+  const respawnAuthorityB = await nextMessage(b, m => m.type === 'player-authority' && m.id === helloB.playerId && m.alive === true, 7000);
+  assert.equal(respawnAuthorityB.hp, respawnAuthorityB.maxHp);
 
   console.log('network integration: PASS');
 } finally {

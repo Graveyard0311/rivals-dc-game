@@ -32,10 +32,10 @@
 ## Milestone D — Two-person private demo — in progress
 - Multiplayer session/lobby ✅ foundation
 - Two human clients in the same match ✅ transform/health replication
-- Authoritative match state ✅ host-authoritative bots/objective/combat; human HP remains owner-applied
+- Authoritative match state ✅ host-authoritative bots/objective + server-authoritative human HP/death/respawn
 - Bots fill every unused slot ✅
 - Join/leave/reconnect behavior ✅ foundation
-- Networked damage ✅ owner-applied validated relay
+- Networked damage ✅ server-owned human HP with validated damage/death/respawn
 - Networked objective state ✅
 - Networked abilities ✅ current heal/shield/slow/root/stun/knockback archetypes
 
