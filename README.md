@@ -203,3 +203,8 @@ Hero swaps preserve K/D, team, match score, and respawn timing. Hero-specific co
 ## Spawn protection
 
 Players receive **2.5 seconds of spawn protection** on initial spawn and respawn. In private matches, the protection timer is server-authoritative and incoming human damage is rejected until the window expires. The HUD displays the remaining protection time.
+
+
+## Lobby ready states
+
+Private lobbies now track per-player readiness. The host is automatically ready when creating the lobby; joining players use the **Ready** button before launch. The host cannot start until every non-host participant is ready.
