@@ -138,6 +138,15 @@ app.innerHTML = `
       <div class="ability teamup-ability"><div class="key">F</div><div id="teamUpLabel" class="label">NO TEAM-UP</div><div id="teamUpCd" class="charge">—</div></div>
       <div class="ability"><div class="key">Q</div><div id="ultLabel" class="label"></div><div id="ultCharge" class="charge">0%</div></div>
     </div>
+    <div id="scoreboard" class="scoreboard hidden">
+      <div class="scoreboard-card">
+        <div class="scoreboard-title">MATCH SCOREBOARD</div>
+        <div class="scoreboard-columns">
+          <div><h3>ALLIANCE</h3><div id="scoreboardBlue"></div></div>
+          <div><h3>LEGION</h3><div id="scoreboardRed"></div></div>
+        </div>
+      </div>
+    </div>
     <div id="banner" class="banner"></div>
     <div id="killfeed" class="killfeed"></div>
   </div>
@@ -534,7 +543,7 @@ function makeFighter(hero, team, isPlayer = false, isRemote = false, networkId =
 
   g.userData = {
     hero, team, body, hp: hero.hp, maxHp: hero.hp, alive: true, isPlayer, isRemote, networkId,
-    respawnAt: 0, lastAttack: 0, target: null, abilityReadyAt: 0,
+    respawnAt: 0, lastAttack: 0, target: null, abilityReadyAt: 0, kills: 0, deaths: 0,
     ultReadyAt: 18000 + Math.random() * 9000, shieldUntil: 0,
     stunnedUntil: 0, empoweredUntil: 0, rootedUntil: 0, slowedUntil: 0, hasteUntil: 0,
     flankSign: Math.random() < 0.5 ? -1 : 1, healthGroup, healthFill,
@@ -1120,11 +1129,19 @@ addEventListener('keydown', e => {
   }
 
   keys[e.code] = true;
+  if (e.code === 'Tab') {
+    e.preventDefault();
+    document.querySelector('#scoreboard')?.classList.remove('hidden');
+    renderScoreboard();
+  }
   if (e.code === settings.keybinds.ability) usePlayerAbility();
   if (e.code === 'KeyF') useTeamUp();
   if (e.code === settings.keybinds.ultimate) useUltimate();
 });
-addEventListener('keyup', e => keys[e.code] = false);
+addEventListener('keyup', e => {
+  keys[e.code] = false;
+  if (e.code === 'Tab') document.querySelector('#scoreboard')?.classList.add('hidden');
+});
 addEventListener('mousemove', e => {
   if (document.pointerLockElement === renderer.domElement && matchStarted) {
     yaw -= e.movementX * settings.mouseSensitivity;
@@ -1943,6 +1960,27 @@ function updateEffects(dt) {
   }
 }
 
+function fighterDisplayName(f) {
+  if (f === player) return 'YOU';
+  const entry = f.userData.networkId ? networkPlayers.find(p => p.id === f.userData.networkId) : null;
+  return entry?.name || f.userData.hero.name;
+}
+
+function renderScoreboardTeam(team, selector) {
+  const rows = fighters
+    .filter(f => f.userData.team === team)
+    .sort((a, b) => Number(b.userData.kills || 0) - Number(a.userData.kills || 0) || Number(a.userData.deaths || 0) - Number(b.userData.deaths || 0))
+    .map(f => `<div class="scoreboard-row"><span><strong>${fighterDisplayName(f)}</strong><small>${f.userData.hero.name} · ${f.userData.hero.role}</small></span><span class="scoreboard-kd">K ${Number(f.userData.kills || 0)} · D ${Number(f.userData.deaths || 0)}</span></div>`)
+    .join('');
+  const el = document.querySelector(selector);
+  if (el) el.innerHTML = rows;
+}
+
+function renderScoreboard() {
+  renderScoreboardTeam('blue', '#scoreboardBlue');
+  renderScoreboardTeam('red', '#scoreboardRed');
+}
+
 function updateHud(now) {
   if (!player) return;
   const hp = Math.max(0, Math.ceil(player.userData.hp));
@@ -1950,6 +1988,7 @@ function updateHud(now) {
   document.querySelector('#healthFill').style.width = `${100 * hp / player.userData.maxHp}%`;
   document.querySelector('#kills').textContent = playerKills;
   document.querySelector('#deaths').textContent = playerDeaths;
+  if (!document.querySelector('#scoreboard')?.classList.contains('hidden')) renderScoreboard();
   document.querySelector('#ultCharge').textContent = `${Math.floor(ultimateCharge)}%`;
   if (selectedHero.resourceKind) {
     document.querySelector('#heroResourceValue').textContent = `${Math.floor(heroResource)}%`;
