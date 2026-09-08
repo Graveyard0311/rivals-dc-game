@@ -1397,7 +1397,12 @@ network.on('match-state', msg => {
     payload.visible = convergencePhase === 'escort';
   }
   objectiveState = state.objectiveState || 'CAPTURE THE NEXUS';
+  const wasMatchOver = matchOver;
   matchOver = Boolean(state.matchOver);
+  if (!wasMatchOver && matchOver && !matchResultsShown) {
+    const winner = blueScore >= redScore ? 'blue' : 'red';
+    queueMicrotask(() => finishMatch(winner, 'HOST-VERIFIED RESULT'));
+  }
 
   for (const snap of state.destructibles || []) {
     const prop = destructibleById.get(String(snap.id || ''));
@@ -2335,16 +2340,12 @@ function updateConvoy(dt, now) {
   document.querySelector('#objectiveState').textContent = objectiveState;
 
   if (!matchOver && convoyProgress >= 100) {
-    matchOver = true;
     blueScore = 100;
     redScore = 0;
-    showBanner('ALLIANCE VICTORY', 5000);
-    setTimeout(() => location.reload(), 5200);
+    finishMatch('blue', 'PAYLOAD DELIVERED');
   } else if (!matchOver && convoyTimeRemaining <= 0) {
-    matchOver = true;
     redScore = 100;
-    showBanner('LEGION VICTORY', 5000);
-    setTimeout(() => location.reload(), 5200);
+    finishMatch('red', 'TIME EXPIRED');
   }
 }
 
@@ -2422,18 +2423,14 @@ function updateConvergence(dt, now) {
   document.querySelector('#objectiveState').textContent = objectiveState;
 
   if (!matchOver && convoyProgress >= 100) {
-    matchOver = true;
     if (escortTeam === 'blue') { blueScore = 100; redScore = 0; }
     else { redScore = 100; blueScore = 0; }
-    showBanner(escortTeam === 'blue' ? 'ALLIANCE VICTORY' : 'LEGION VICTORY', 5000);
-    setTimeout(() => location.reload(), 5200);
+    finishMatch(escortTeam, 'CONVERGENCE PAYLOAD DELIVERED');
   } else if (!matchOver && convoyTimeRemaining <= 0) {
-    matchOver = true;
     const winner = defendTeam;
     if (winner === 'blue') { blueScore = 100; redScore = 0; }
     else { redScore = 100; blueScore = 0; }
-    showBanner(winner === 'blue' ? 'ALLIANCE VICTORY' : 'LEGION VICTORY', 5000);
-    setTimeout(() => location.reload(), 5200);
+    finishMatch(winner, 'CONVERGENCE DEFENDED');
   }
 }
 
@@ -2455,10 +2452,8 @@ function updateObjective(dt) {
     document.querySelector('#objectiveState').textContent = objectiveState;
 
     if (!matchOver && (blueScore >= TDM_SCORE_TO_WIN || redScore >= TDM_SCORE_TO_WIN)) {
-      matchOver = true;
       const winningBlue = blueScore >= TDM_SCORE_TO_WIN;
-      showBanner(winningBlue ? 'ALLIANCE VICTORY' : 'LEGION VICTORY', 5000);
-      setTimeout(() => location.reload(), 5200);
+      finishMatch(winningBlue ? 'blue' : 'red', 'ELIMINATION LIMIT');
     }
     return;
   }
@@ -2498,9 +2493,7 @@ function updateObjective(dt) {
       if (winningBlue) blueScore = 99.8; else redScore = 99.8;
       return;
     }
-    matchOver = true;
-    showBanner(winningBlue ? 'ALLIANCE VICTORY' : 'LEGION VICTORY', 5000);
-    setTimeout(() => location.reload(), 5200);
+    finishMatch(winningBlue ? 'blue' : 'red', 'OBJECTIVE SECURED');
   }
 }
 
