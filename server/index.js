@@ -56,6 +56,18 @@ function snapshot(lobby) {
   }));
 }
 
+function statsSnapshot(lobby) {
+  return [...lobby.clients.entries()].map(([id, c]) => ({
+    id,
+    kills: Number(c.kills || 0),
+    deaths: Number(c.deaths || 0)
+  }));
+}
+
+function broadcastPlayerStats(lobby) {
+  broadcast(lobby, { type: 'player-stats', stats: statsSnapshot(lobby) });
+}
+
 function assignTeam(lobby) {
   let blue = 0, red = 0;
   for (const c of lobby.clients.values()) c.team === 'blue' ? blue++ : red++;
@@ -95,7 +107,9 @@ function joinLobby(ws, lobby, lobbyCode, msg) {
     maxHp: hero.hp,
     hp: hero.hp,
     alive: true,
-    respawnAt: 0
+    respawnAt: 0,
+    kills: 0,
+    deaths: 0
   };
   lobby.clients.set(id, player);
   ws.meta.lobbyCode = lobbyCode;
@@ -163,12 +177,17 @@ wss.on('connection', ws => {
 
     if (msg.type === 'start-match') {
       if (lobby.hostId !== ws.meta.id) return;
-      for (const player of lobby.clients.values()) resetPlayerCombatState(player);
+      for (const player of lobby.clients.values()) {
+        resetPlayerCombatState(player);
+        player.kills = 0;
+        player.deaths = 0;
+      }
       const mode = ['domination', 'tdm', 'convoy', 'convergence'].includes(msg.mode) ? msg.mode : 'domination';
       const difficulty = ['easy', 'normal', 'hard', 'expert'].includes(msg.difficulty) ? msg.difficulty : 'normal';
       const arena = ['nexus', 'gotham', 'themyscira'].includes(msg.arena) ? msg.arena : 'nexus';
       broadcast(lobby, { type: 'match-start', mode, difficulty, arena, seed: crypto.randomInt(0, 2 ** 31 - 1), players: snapshot(lobby) });
       for (const [id] of lobby.clients) broadcastPlayerAuthority(lobby, id);
+      broadcastPlayerStats(lobby);
       return;
     }
 
@@ -229,17 +248,25 @@ wss.on('connection', ws => {
           : self.team;
         if (!target || target.team === sourceTeam || !target.alive || !Number.isFinite(amount) || amount <= 0) return;
         const dealt = Math.min(amount, 250);
+        const claimedSourceId = String(event.sourceId || '');
+        const sourcePlayer = claimedSourceId ? lobby.clients.get(claimedSourceId) : null;
+        const authoritativeSourceId = sourcePlayer && sourcePlayer.team === sourceTeam ? claimedSourceId : '';
         target.hp = Math.max(0, target.hp - dealt);
         let killed = false;
         if (target.hp <= 0) {
           target.alive = false;
           target.respawnAt = Date.now() + RESPAWN_MS;
+          target.deaths = Number(target.deaths || 0) + 1;
+          if (authoritativeSourceId) {
+            const killer = lobby.clients.get(authoritativeSourceId);
+            if (killer) killer.kills = Number(killer.kills || 0) + 1;
+          }
           killed = true;
         }
 
         send(target.ws, {
           type: 'combat-event',
-          id: String(event.sourceId || ws.meta.id),
+          id: authoritativeSourceId || '',
           event: {
             kind: 'damage',
             amount: dealt,
@@ -253,15 +280,16 @@ wss.on('connection', ws => {
         if (killed) {
           broadcast(lobby, {
             type: 'combat-event',
-            id: ws.meta.id,
+            id: authoritativeSourceId,
             event: {
               kind: 'team-kill',
               team: sourceTeam,
               victimId: targetId,
-              killerId: ws.meta.id,
-              sourceName: String(event.sourceName || self.name || 'Opponent').slice(0, 48)
+              killerId: authoritativeSourceId,
+              sourceName: String(event.sourceName || (authoritativeSourceId ? lobby.clients.get(authoritativeSourceId)?.name : '') || 'Opponent').slice(0, 48)
             }
           });
+          broadcastPlayerStats(lobby);
         }
         return;
       }
