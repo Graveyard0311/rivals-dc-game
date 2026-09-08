@@ -26,6 +26,8 @@ let selectedBotDifficulty = 'normal';
 let selectedArena = 'nexus';
 let matchStarted = false;
 let matchOver = false;
+let trainingMode = false;
+let trainingInfiniteUlt = false;
 let blueScore = 0;
 let redScore = 0;
 let convoyProgress = 0;
@@ -113,6 +115,7 @@ app.innerHTML = `
         <div id="networkStatus" class="network-status">Offline mode ready</div>
       </div>
       <button id="deployBtn" class="deploy">DEPLOY OFFLINE BATTLE</button>
+      <button id="trainingBtn" class="training-launch">ENTER TRAINING RANGE</button>
     </div>
   </div>
   <div id="hud" class="hud hidden">
@@ -137,6 +140,16 @@ app.innerHTML = `
       <div class="ability"><div class="key">⇧</div><div id="abilityLabel" class="label"></div><div id="abilityCd" class="charge">READY</div></div>
       <div class="ability teamup-ability"><div class="key">F</div><div id="teamUpLabel" class="label">NO TEAM-UP</div><div id="teamUpCd" class="charge">—</div></div>
       <div class="ability"><div class="key">Q</div><div id="ultLabel" class="label"></div><div id="ultCharge" class="charge">0%</div></div>
+    </div>
+    <div id="trainingPanel" class="training-panel hidden">
+      <div class="training-title">TRAINING RANGE</div>
+      <label>Hero
+        <select id="trainingHeroSelect"></select>
+      </label>
+      <button id="resetCooldownsBtn">RESET COOLDOWNS</button>
+      <button id="fillUltimateBtn">FILL ULTIMATE</button>
+      <button id="toggleInfiniteUltBtn">INFINITE ULT: OFF</button>
+      <button id="resetTargetsBtn">RESET TARGETS</button>
     </div>
     <div id="scoreboard" class="scoreboard hidden">
       <div class="scoreboard-card">
@@ -250,6 +263,14 @@ function persistSettings() {
 }
 
 const rosterEl = document.querySelector('#roster');
+const trainingHeroSelect = document.querySelector('#trainingHeroSelect');
+for (const hero of HEROES) {
+  const opt = document.createElement('option');
+  opt.value = hero.id;
+  opt.textContent = `${hero.universe} · ${hero.name}`;
+  trainingHeroSelect.appendChild(opt);
+}
+trainingHeroSelect.value = selectedHero.id;
 for (const hero of HEROES) {
   const b = document.createElement('button');
   b.className = 'hero-option' + (hero.id === selectedHero.id ? ' selected' : '');
@@ -257,6 +278,7 @@ for (const hero of HEROES) {
   b.innerHTML = `<span class="universe">${hero.universe}</span><strong>${hero.name}</strong><small>${hero.role} · ${hero.primary}</small>`;
   b.onclick = () => {
     selectedHero = getHero(hero.id);
+    trainingHeroSelect.value = selectedHero.id;
     network.setHero(selectedHero.id);
     [...rosterEl.children].forEach(x => x.classList.toggle('selected', x.dataset.hero === hero.id));
   };
