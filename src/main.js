@@ -726,14 +726,16 @@ function damage(target, amount, attacker, networkApplied = false) {
       }
     }
 
+    if (attacker) attacker.userData.kills = Number(attacker.userData.kills || 0) + 1;
+    target.userData.deaths = Number(target.userData.deaths || 0) + 1;
+
     if (attacker === player) {
-      playerKills++;
+      playerKills = attacker.userData.kills;
       ultimateCharge = Math.min(100, ultimateCharge + 24);
     }
     if (target === player) {
-      playerDeaths++;
+      playerDeaths = target.userData.deaths;
       respawnAt = target.userData.respawnAt;
-
     }
   }
 }
@@ -939,6 +941,8 @@ network.on('match-state', msg => {
     bot.rotation.y = Number(snap.rotationY || 0);
     bot.userData.hp = THREE.MathUtils.clamp(Number(snap.hp || 0), 0, bot.userData.maxHp);
     bot.userData.alive = Boolean(snap.alive);
+    bot.userData.kills = Number(snap.kills || 0);
+    bot.userData.deaths = Number(snap.deaths || 0);
     bot.visible = bot.userData.alive;
   }
 
@@ -964,6 +968,19 @@ network.on('match-state', msg => {
   document.querySelector('#objectiveState').textContent = objectiveState;
 
   if (matchOver) showBanner(blueScore >= redScore ? 'ALLIANCE VICTORY' : 'LEGION VICTORY', 5000);
+});
+
+network.on('player-stats', msg => {
+  for (const stat of msg.stats || []) {
+    const fighter = stat.id === network.playerId ? player : remoteFighters.get(stat.id);
+    if (!fighter) continue;
+    fighter.userData.kills = Number(stat.kills || 0);
+    fighter.userData.deaths = Number(stat.deaths || 0);
+    if (fighter === player) {
+      playerKills = fighter.userData.kills;
+      playerDeaths = fighter.userData.deaths;
+    }
+  }
 });
 
 network.on('player-authority', msg => {
@@ -2051,7 +2068,9 @@ function animate() {
             position: { x: f.position.x, y: f.position.y, z: f.position.z },
             rotationY: f.rotation.y,
             hp: f.userData.hp,
-            alive: f.userData.alive
+            alive: f.userData.alive,
+            kills: Number(f.userData.kills || 0),
+            deaths: Number(f.userData.deaths || 0)
           }));
         network.send('match-state', {
           state: {
