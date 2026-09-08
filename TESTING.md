@@ -28,6 +28,17 @@ Offline matches run as 6v6 with bots filling every non-human slot.
 - Gotham Industrial
 - Themyscira Ruins
 
+## Training Range test
+
+1. From hero select, choose **Enter Training Range**.
+2. Confirm stationary and moving targets spawn and the hostile target attacks.
+3. Switch heroes from the Training Range panel and confirm HUD, HP, attacks, resource meter, and colors update without a reload.
+4. Use **Reset Cooldowns** and confirm Shift/RMB cooldowns return to ready.
+5. Use **Fill Ultimate** and confirm Q reaches 100%.
+6. Enable **Infinite Ult** and confirm Q remains available after activation.
+7. Destroy practice targets and confirm they respawn at their range positions.
+8. Use **Reset Targets** and confirm all targets return to full HP and their original locations.
+
 ## Two-human private match test
 
 Use two browser windows, two computers, or two separate browser profiles.
@@ -170,7 +181,7 @@ This is a repository-level GitHub Pages enablement restriction, not a game build
 
 - Original placeholder geometry is used instead of licensed character models.
 - Procedural/placeholder audio is used instead of production sound assets.
-- Human HP is owner-applied rather than fully server-authoritative.
+- Connected-human HP, death, kill generation, and respawn timing are server-authoritative.
 - Networking is intended for private testing, not hostile public matchmaking.
 - Many heroes use reusable prototype archetypes and still need deeper bespoke mechanics.
 - Wider browser/hardware playtesting remains necessary.
