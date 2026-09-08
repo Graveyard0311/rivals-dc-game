@@ -50,9 +50,9 @@
 - More bot personalities/difficulty levels ✅ Easy/Normal/Hard/Expert tuning profiles
 
 ## Milestone F — Packaging/polish
-- Browser-hosted test URL ✅ GitHub Pages workflow
+- Browser-hosted test URL ⚠️ workflow ready; one-time GitHub Pages repository enablement still required
 - Downloadable desktop wrapper/build ✅ Electron wrapper + cross-platform packaging workflow
 - Settings and keybinds ✅ persistent local settings + remapping + health-bar visibility
 - Performance optimization ✅ transient projectile/VFX pooling and caps / expanding
 - Animation/model/audio polish ✅ role-distinct placeholder silhouettes + locomotion motion + procedural audio / production assets remaining
-- Final private-demo QA ✅ automated build/network/team-up/bot/arena/hero regression suite / browser playtest remaining
+- Final private-demo QA ✅ automated build/network/team-up/bot/arena/hero regression suite + tester handoff guide / broader browser playtest remaining

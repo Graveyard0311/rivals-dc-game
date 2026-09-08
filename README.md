@@ -6,7 +6,7 @@ Private, browser-first Marvel/DC hero-shooter demo.
 
 - Hero-select screen with 33 Marvel/DC roster entries
 - 6v6 match population
-- One human player with bots filling the remaining slots
+- Offline 6v6 with one local human and bot fill; private lobbies support multiple connected humans with bots filling remaining slots
 - Third-person movement and camera
 - Persistent FOV, mouse sensitivity, volume, reduced-shake and keybind settings
 - Primary and secondary attacks
@@ -48,7 +48,7 @@ npm run server
 
 The browser client defaults to `ws://localhost:8787`. For a hosted server, set `VITE_WS_URL` before building the browser client.
 
-Current network milestone supports lobby creation/joining, team assignment, host migration, hero updates, match-start signaling, and player-state relays. Remote human rendering and authoritative combat reconciliation are the next networking slice.
+Current private networking supports lobby creation/joining, team assignment, host migration, remote human rendering, player-state relays, host-owned bot/objective state, synchronized current ability effects, and validated human combat relays. Human HP remains owner-applied rather than fully server-authoritative.
 
 ## Direction
 
@@ -71,7 +71,7 @@ GitHub Actions also includes a `Desktop Packages` workflow that builds Windows p
 
 ## Hosted browser demo
 
-The repository includes a `Browser Demo` GitHub Actions workflow that builds and deploys the current `main` branch to GitHub Pages.
+The repository includes a `Browser Demo` GitHub Actions workflow that builds the current `main` branch for GitHub Pages. A one-time repository-level Pages enablement is still required before deployment can complete.
 
 The hosted Pages build supports the full offline 6v6 experience. Private multiplayer still requires a reachable WebSocket server configured through `VITE_WS_URL`; when no server is available, the UI falls back to offline play.
 
@@ -109,3 +109,8 @@ In private lobbies, the host owns payload progress, timer, bot behavior, and vic
 **Convergence** is a two-stage hybrid mode. Both teams first fight over a neutral capture point. The team that completes that capture becomes the escorting team, the payload spawns on its side of the map, and the route reverses automatically if Legion wins the opening point. The escorting team must reach 100% payload progress before the 2:30 escort timer expires; otherwise the defending team wins.
 
 In private lobbies, the host synchronizes capture progress, phase transitions, escort-team ownership, payload progress, timer state, bots, and victory state to connected clients.
+
+
+## Testing
+
+See [TESTING.md](./TESTING.md) for offline testing, two-client private match setup, automated validation coverage, build artifacts, and current alpha limitations.
