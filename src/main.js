@@ -26,6 +26,7 @@ let selectedBotDifficulty = 'normal';
 let selectedArena = 'nexus';
 let matchStarted = false;
 let matchOver = false;
+let matchResultsShown = false;
 let trainingMode = false;
 let trainingInfiniteUlt = false;
 let heroSwapOpen = false;
@@ -166,6 +167,19 @@ app.innerHTML = `
           <div><h3>ALLIANCE</h3><div id="scoreboardBlue"></div></div>
           <div><h3>LEGION</h3><div id="scoreboardRed"></div></div>
         </div>
+      </div>
+    </div>
+    <div id="matchResults" class="match-results hidden">
+      <div class="results-card">
+        <div id="resultsOutcome" class="results-outcome"></div>
+        <div id="resultsMode" class="results-mode"></div>
+        <div id="resultsMvp" class="results-mvp"></div>
+        <div class="results-columns">
+          <div><h3>ALLIANCE</h3><div id="resultsBlue"></div></div>
+          <div><h3>LEGION</h3><div id="resultsRed"></div></div>
+        </div>
+        <div id="resultsLocal" class="results-local"></div>
+        <button id="resultsReturnBtn" class="results-return">RETURN TO LOBBY / MENU</button>
       </div>
     </div>
     <div id="heroSwapPanel" class="hero-swap-panel hidden">
@@ -2777,6 +2791,57 @@ function renderScoreboard() {
   renderScoreboardTeam('blue', '#scoreboardBlue');
   renderScoreboardTeam('red', '#scoreboardRed');
 }
+
+function matchMvp() {
+  return [...fighters].sort((a, b) => {
+    const aKills = Number(a.userData.kills || 0);
+    const bKills = Number(b.userData.kills || 0);
+    const aDeaths = Number(a.userData.deaths || 0);
+    const bDeaths = Number(b.userData.deaths || 0);
+    const aScore = aKills * 100 - aDeaths * 25;
+    const bScore = bKills * 100 - bDeaths * 25;
+    return bScore - aScore || bKills - aKills || aDeaths - bDeaths;
+  })[0] || null;
+}
+
+function renderResultsTeam(team, selector) {
+  const rows = fighters
+    .filter(f => f.userData.team === team)
+    .sort((a, b) => Number(b.userData.kills || 0) - Number(a.userData.kills || 0) || Number(a.userData.deaths || 0) - Number(b.userData.deaths || 0))
+    .map(f => `<div class="results-row"><span><strong>${fighterDisplayName(f)}</strong><small>${f.userData.hero.name} · ${f.userData.hero.role}</small></span><span>K ${Number(f.userData.kills || 0)} · D ${Number(f.userData.deaths || 0)}</span></div>`)
+    .join('');
+  const el = document.querySelector(selector);
+  if (el) el.innerHTML = rows;
+}
+
+function finishMatch(winner, reason = '') {
+  if (matchResultsShown || trainingMode) return;
+  matchOver = true;
+  matchResultsShown = true;
+  const winnerName = winner === 'blue' ? 'ALLIANCE' : 'LEGION';
+  const mvp = matchMvp();
+
+  document.exitPointerLock?.();
+  document.querySelector('#scoreboard')?.classList.add('hidden');
+  document.querySelector('#heroSwapPanel')?.classList.add('hidden');
+  heroSwapOpen = false;
+
+  document.querySelector('#resultsOutcome').textContent = `${winnerName} VICTORY`;
+  document.querySelector('#resultsMode').textContent = `${selectedMode.toUpperCase()} · ${getArena(selectedArena).name}${reason ? ` · ${reason}` : ''}`;
+  document.querySelector('#resultsMvp').innerHTML = mvp
+    ? `<span>MATCH MVP</span><strong>${fighterDisplayName(mvp)}</strong><small>${mvp.userData.hero.name} · K ${Number(mvp.userData.kills || 0)} / D ${Number(mvp.userData.deaths || 0)}</small>`
+    : '<span>MATCH MVP</span><strong>—</strong>';
+
+  renderResultsTeam('blue', '#resultsBlue');
+  renderResultsTeam('red', '#resultsRed');
+  document.querySelector('#resultsLocal').textContent = player
+    ? `YOUR RESULT · ${selectedHero.name} · K ${playerKills} / D ${playerDeaths}`
+    : '';
+  document.querySelector('#matchResults')?.classList.remove('hidden');
+  showBanner(`${winnerName} VICTORY`, 1600);
+}
+
+document.querySelector('#resultsReturnBtn').onclick = () => location.reload();
 
 function updateHud(now) {
   if (!player) return;
