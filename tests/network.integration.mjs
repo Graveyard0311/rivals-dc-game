@@ -109,6 +109,15 @@ try {
   assert.equal(matchStartA.arena, 'gotham');
   assert.equal(matchStartRemote.arena, 'gotham');
 
+  const convergenceStartB = nextMessage(b, m => m.type === 'match-start' && m.mode === 'convergence');
+  send(a, 'start-match', { mode: 'convergence', difficulty: 'expert', arena: 'themyscira' });
+  const convergenceStartA = await nextMessage(a, m => m.type === 'match-start' && m.mode === 'convergence');
+  const convergenceStartRemote = await convergenceStartB;
+  assert.equal(convergenceStartA.mode, 'convergence');
+  assert.equal(convergenceStartRemote.mode, 'convergence');
+  assert.equal(convergenceStartA.difficulty, 'expert');
+  assert.equal(convergenceStartRemote.arena, 'themyscira');
+
   const stateOnB = nextMessage(b, m => m.type === 'state' && m.id === helloA.playerId);
   send(a, 'state', {
     t: Date.now(),
@@ -130,6 +139,10 @@ try {
       matchOver: false,
       convoyProgress: 32.5,
       convoyTimeRemaining: 120,
+      convergencePhase: 'escort',
+      convergenceBlueCapture: 100,
+      convergenceRedCapture: 64,
+      convergenceEscortTeam: 'blue',
       bots: [{
         slot: 0,
         team: 'blue',
@@ -146,6 +159,10 @@ try {
   assert.equal(sharedState.state.blueScore, 12.5);
   assert.equal(sharedState.state.convoyProgress, 32.5);
   assert.equal(sharedState.state.convoyTimeRemaining, 120);
+  assert.equal(sharedState.state.convergencePhase, 'escort');
+  assert.equal(sharedState.state.convergenceBlueCapture, 100);
+  assert.equal(sharedState.state.convergenceRedCapture, 64);
+  assert.equal(sharedState.state.convergenceEscortTeam, 'blue');
   assert.equal(sharedState.state.bots.length, 1);
 
   const damageOnB = nextMessage(b, m => m.type === 'combat-event' && m.event?.kind === 'damage');

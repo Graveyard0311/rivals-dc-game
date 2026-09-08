@@ -12,7 +12,7 @@ Private, browser-first Marvel/DC hero-shooter demo.
 - Primary and secondary attacks
 - Hero-specific health, damage, range, movement speed, fire rate, secondary, ability and ultimate data
 - Bot target acquisition, cover/flank movement and combat
-- Domination capture objective and Team Deathmatch
+- Domination capture objective, Team Deathmatch, Convoy, and Convergence
 - Mode-specific score progression (Domination to 100; Team Deathmatch to 30)
 - Deaths, kill feed, respawns and K/D tracking
 - Ultimate charge and area-damage ultimate
@@ -102,3 +102,10 @@ Arena selection changes environment palette, cover placement, collision geometry
 **Convoy** is an attack/defend payload mode. Alliance escorts the payload from its start line toward Legion territory while Legion contests the escort radius. The attacking team wins by reaching 100% progress; the defending team wins if the three-minute round timer expires first.
 
 In private lobbies, the host owns payload progress, timer, bot behavior, and victory state and synchronizes them to the other clients.
+
+
+## Convergence mode
+
+**Convergence** is a two-stage hybrid mode. Both teams first fight over a neutral capture point. The team that completes that capture becomes the escorting team, the payload spawns on its side of the map, and the route reverses automatically if Legion wins the opening point. The escorting team must reach 100% payload progress before the 2:30 escort timer expires; otherwise the defending team wins.
+
+In private lobbies, the host synchronizes capture progress, phase transitions, escort-team ownership, payload progress, timer state, bots, and victory state to connected clients.
