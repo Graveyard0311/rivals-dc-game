@@ -188,3 +188,13 @@ When the local player is eliminated in a normal match, the camera automatically 
 - **D-pad Left / Right** — previous/next teammate on controller
 
 The spectator camera uses the same collision-aware third-person camera and returns control automatically when the player respawns.
+
+
+## In-match hero swapping
+
+Press **H** during a normal match to open the hero swap overlay when either:
+
+- you are eliminated and waiting to respawn, or
+- you are within your team's spawn area.
+
+Hero swaps preserve K/D, team, match score, and respawn timing. Hero-specific cooldowns/resources reset, and networked swaps update remote fighter visuals/state for all connected clients.
