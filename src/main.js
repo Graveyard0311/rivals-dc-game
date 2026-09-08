@@ -1030,6 +1030,7 @@ function startTrainingRange() {
   if (joinedLobby) return setNetworkStatus('Leave the private lobby before entering Training Range', true);
   trainingMode = true;
   matchStarted = true;
+  resetDestructibles();
   matchOver = false;
   selectedMode = 'training';
   clearExistingFighters();
@@ -1079,6 +1080,7 @@ function startMatch(players = networkPlayers) {
   if (matchStarted) return;
   matchStarted = true;
   matchOver = false;
+  resetDestructibles();
   blueScore = 0;
   redScore = 0;
   convoyProgress = 0;
@@ -1249,6 +1251,12 @@ network.on('match-state', msg => {
   objectiveState = state.objectiveState || 'CAPTURE THE NEXUS';
   matchOver = Boolean(state.matchOver);
 
+  for (const snap of state.destructibles || []) {
+    const prop = destructibleById.get(String(snap.id || ''));
+    if (!prop) continue;
+    setDestructibleState(prop, Number(snap.hp || 0), Boolean(snap.alive));
+  }
+
   for (const snap of state.bots || []) {
     const bot = fighters.find(f =>
       !f.userData.isPlayer &&
@@ -1353,6 +1361,15 @@ network.on('combat-event', msg => {
       networkApplied: true,
       sourcePosition: msg.event.sourcePosition || null
     });
+    return;
+  }
+
+  if (msg.event.kind === 'world-damage' && network.playerId === lobbyHostId) {
+    const prop = destructibleById.get(String(msg.event.destructibleId || ''));
+    if (prop) {
+      const attacker = remoteFighters.get(msg.id) || null;
+      damageDestructible(prop, Number(msg.event.amount || 0), attacker, true);
+    }
     return;
   }
 
@@ -2531,6 +2548,11 @@ function animate() {
       updateObjective(dt);
       if (joinedLobby && network.connected && now - lastMatchStateAt >= 100) {
         lastMatchStateAt = now;
+        const destructibleState = destructibles.map(prop => ({
+          id: prop.id,
+          hp: prop.hp,
+          alive: prop.alive
+        }));
         const bots = fighters
           .filter(f => !f.userData.isPlayer && !f.userData.isRemote)
           .map(f => ({
@@ -2547,7 +2569,8 @@ function animate() {
         network.send('match-state', {
           state: {
             blueScore, redScore, objectiveState, matchOver, convoyProgress, convoyTimeRemaining,
-            convergencePhase, convergenceBlueCapture, convergenceRedCapture, convergenceEscortTeam, bots
+            convergencePhase, convergenceBlueCapture, convergenceRedCapture, convergenceEscortTeam,
+            destructibles: destructibleState, bots
           }
         });
       }
