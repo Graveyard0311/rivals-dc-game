@@ -268,3 +268,12 @@ This is a repository-level GitHub Pages enablement restriction, not a game build
 2. Attempt to damage a newly spawned player during the protection window and confirm no HP is lost.
 3. Wait for the countdown to expire and confirm normal damage resumes.
 4. In a private match, confirm the server rejects damage during protection and both clients agree on HP.
+
+
+## Lobby ready-state test
+
+1. Create a private lobby on Client A and join from Client B.
+2. Confirm Client B initially shows unready.
+3. Attempt to start from Client A and confirm launch is blocked while Client B is unready.
+4. Mark Client B ready and confirm both clients update the ready count.
+5. Confirm the host can now start the match.
