@@ -123,7 +123,7 @@ wss.on('connection', ws => {
 
     if (msg.type === 'start-match') {
       if (lobby.hostId !== ws.meta.id) return;
-      const mode = ['domination', 'tdm', 'convoy'].includes(msg.mode) ? msg.mode : 'domination';
+      const mode = ['domination', 'tdm', 'convoy', 'convergence'].includes(msg.mode) ? msg.mode : 'domination';
       const difficulty = ['easy', 'normal', 'hard', 'expert'].includes(msg.difficulty) ? msg.difficulty : 'normal';
       const arena = ['nexus', 'gotham', 'themyscira'].includes(msg.arena) ? msg.arena : 'nexus';
       broadcast(lobby, { type: 'match-start', mode, difficulty, arena, seed: crypto.randomInt(0, 2 ** 31 - 1), players: snapshot(lobby) });
@@ -165,6 +165,10 @@ wss.on('connection', ws => {
           matchOver: Boolean(state.matchOver),
           convoyProgress: Math.max(0, Math.min(100, Number(state.convoyProgress || 0))),
           convoyTimeRemaining: Math.max(0, Math.min(300, Number(state.convoyTimeRemaining || 0))),
+          convergencePhase: state.convergencePhase === 'escort' ? 'escort' : 'capture',
+          convergenceBlueCapture: Math.max(0, Math.min(100, Number(state.convergenceBlueCapture || 0))),
+          convergenceRedCapture: Math.max(0, Math.min(100, Number(state.convergenceRedCapture || 0))),
+          convergenceEscortTeam: state.convergenceEscortTeam === 'red' ? 'red' : 'blue',
           bots
         }
       }, ws.meta.id);
