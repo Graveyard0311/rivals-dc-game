@@ -14,7 +14,8 @@ function authoritativePlayerState(id, player) {
     hp: player.hp,
     maxHp: player.maxHp,
     alive: player.alive,
-    respawnAt: player.respawnAt || 0
+    respawnAt: player.respawnAt || 0,
+    spawnProtectedUntil: player.spawnProtectedUntil || 0
   };
 }
 
@@ -31,6 +32,7 @@ function resetPlayerCombatState(player) {
   player.alive = true;
   player.respawnAt = 0;
   player.shieldUntil = 0;
+  player.spawnProtectedUntil = Date.now() + 2500;
 }
 
 function code() {
@@ -110,6 +112,7 @@ function joinLobby(ws, lobby, lobbyCode, msg) {
     alive: true,
     respawnAt: 0,
     shieldUntil: 0,
+    spawnProtectedUntil: Date.now() + 2500,
     kills: 0,
     deaths: 0
   };
@@ -255,8 +258,10 @@ wss.on('connection', ws => {
           ? event.sourceTeam
           : self.team;
         if (!target || target.team === sourceTeam || !target.alive || !Number.isFinite(amount) || amount <= 0) return;
+        const now = Date.now();
+        if (Number(target.spawnProtectedUntil || 0) > now) return;
         let dealt = Math.min(amount, 250);
-        if (Number(target.shieldUntil || 0) > Date.now()) dealt *= 0.42;
+        if (Number(target.shieldUntil || 0) > now) dealt *= 0.42;
         const claimedSourceId = String(event.sourceId || '');
         const sourcePlayer = claimedSourceId ? lobby.clients.get(claimedSourceId) : null;
         const authoritativeSourceId = sourcePlayer && sourcePlayer.team === sourceTeam ? claimedSourceId : '';

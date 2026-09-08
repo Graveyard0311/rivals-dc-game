@@ -198,3 +198,8 @@ Press **H** during a normal match to open the hero swap overlay when either:
 - you are within your team's spawn area.
 
 Hero swaps preserve K/D, team, match score, and respawn timing. Hero-specific cooldowns/resources reset, and networked swaps update remote fighter visuals/state for all connected clients.
+
+
+## Spawn protection
+
+Players receive **2.5 seconds of spawn protection** on initial spawn and respawn. In private matches, the protection timer is server-authoritative and incoming human damage is rejected until the window expires. The HUD displays the remaining protection time.

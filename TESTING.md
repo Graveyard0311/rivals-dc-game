@@ -260,3 +260,11 @@ This is a repository-level GitHub Pages enablement restriction, not a game build
 5. Confirm the respawn countdown continues normally rather than instantly reviving you.
 6. Confirm the new hero appears when you respawn and hero-specific resources/cooldowns are reset.
 7. In a private match, swap while dead and confirm the other client sees the new hero immediately.
+
+
+## Spawn protection test
+
+1. Start or respawn in a match and confirm the HUD shows a short spawn-protection countdown.
+2. Attempt to damage a newly spawned player during the protection window and confirm no HP is lost.
+3. Wait for the countdown to expire and confirm normal damage resumes.
+4. In a private match, confirm the server rejects damage during protection and both clients agree on HP.

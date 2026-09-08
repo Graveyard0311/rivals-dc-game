@@ -59,6 +59,16 @@ function send(ws, type, payload = {}) {
   ws.send(JSON.stringify({ type, ...payload }));
 }
 
+async function expectNoMessage(ws, predicate, timeout = 300) {
+  try {
+    await nextMessage(ws, predicate, timeout);
+    return false;
+  } catch (error) {
+    if (/Timed out waiting/.test(String(error?.message || error))) return true;
+    throw error;
+  }
+}
+
 const server = spawn(process.execPath, ['server/index.js'], {
   env: { ...process.env, PORT: String(PORT) },
   stdio: ['ignore', 'pipe', 'pipe']
@@ -130,7 +140,27 @@ try {
   assert.deepEqual(relayedState.position, { x: 4, y: 0, z: -2 });
   assert.equal(relayedState.hp, 700);
 
-  const authorityAfterDamageB = nextMessage(b, m => m.type === 'player-authority' && m.id === helloB.playerId && m.hp === 297);
+  const protectedDamageBlocked = expectNoMessage(
+    b,
+    m => (m.type === 'combat-event' && m.event?.kind === 'damage') ||
+      (m.type === 'player-authority' && m.id === helloB.playerId && m.hp < 420),
+    350
+  );
+  send(a, 'combat-event', {
+    event: {
+      kind: 'damage',
+      targetId: helloB.playerId,
+      amount: 40,
+      source: 'Heat Vision',
+      sourceName: 'Superman',
+      sourceTeam: 'blue',
+      sourceId: helloA.playerId
+    }
+  });
+  assert.equal(await protectedDamageBlocked, true);
+  await new Promise(resolve => setTimeout(resolve, 2250));
+
+    const authorityAfterDamageB = nextMessage(b, m => m.type === 'player-authority' && m.id === helloB.playerId && m.hp === 297);
   send(a, 'combat-event', {
     event: {
       kind: 'damage',
@@ -377,6 +407,7 @@ try {
   console.log('checkpoint: respawn authority');
   assert.equal(respawnAuthorityB.hp, respawnAuthorityB.maxHp);
   assert.equal(respawnAuthorityB.maxHp, 430);
+  assert.ok(respawnAuthorityB.spawnProtectedUntil > Date.now());
 
   console.log('network integration: PASS');
 } finally {
