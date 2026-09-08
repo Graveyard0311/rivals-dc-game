@@ -138,7 +138,8 @@ try {
       amount: 123,
       source: 'Heat Vision',
       sourceName: 'Superman',
-      sourceTeam: 'blue'
+      sourceTeam: 'blue',
+      sourceId: helloA.playerId
     }
   });
   const authorityDamage = await authorityAfterDamageB;
@@ -196,7 +197,8 @@ try {
       amount: 250,
       source: 'Worldbreaker',
       sourceName: 'Superman',
-      sourceTeam: 'blue'
+      sourceTeam: 'blue',
+      sourceId: helloA.playerId
     }
   });
   const damage = await damageOnB;
@@ -208,7 +210,8 @@ try {
       amount: 80,
       source: 'Heat Vision',
       sourceName: 'Superman',
-      sourceTeam: 'blue'
+      sourceTeam: 'blue',
+      sourceId: helloA.playerId
     }
   });
   await secondDamageOnB;
