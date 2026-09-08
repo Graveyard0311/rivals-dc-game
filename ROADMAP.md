@@ -86,3 +86,10 @@
 - Keyboard/controller teammate cycling ✅
 - Collision-aware spectator camera ✅
 - Free camera spectator — future
+
+
+## Spawn-room flow
+- In-match hero swap overlay ✅
+- Swap while dead without skipping respawn ✅
+- Spawn-area hero swapping ✅
+- Networked remote hero visual/state updates ✅

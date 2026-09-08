@@ -165,13 +165,11 @@ wss.on('connection', ws => {
     if (!self) return;
 
     if (msg.type === 'set-hero') {
-      self.heroId = String(msg.heroId || self.heroId);
-      if (!self.alive) resetPlayerCombatState(self);
-      else {
-        const hero = getHero(self.heroId);
-        self.maxHp = hero.hp;
-        self.hp = Math.min(self.hp, self.maxHp);
-      }
+      const requested = getHero(String(msg.heroId || self.heroId));
+      self.heroId = requested.id;
+      self.maxHp = requested.hp;
+      self.hp = self.alive ? Math.min(self.hp, self.maxHp) : 0;
+      self.shieldUntil = 0;
       broadcast(lobby, { type: 'player-updated', id: ws.meta.id, heroId: self.heroId, players: snapshot(lobby) });
       broadcastPlayerAuthority(lobby, ws.meta.id);
       return;

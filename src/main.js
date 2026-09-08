@@ -28,6 +28,7 @@ let matchStarted = false;
 let matchOver = false;
 let trainingMode = false;
 let trainingInfiniteUlt = false;
+let heroSwapOpen = false;
 let blueScore = 0;
 let redScore = 0;
 let convoyProgress = 0;
@@ -165,6 +166,12 @@ app.innerHTML = `
         </div>
       </div>
     </div>
+    <div id="heroSwapPanel" class="hero-swap-panel hidden">
+      <div class="hero-swap-card">
+        <div class="hero-swap-head"><strong>CHANGE HERO</strong><span>H TO CLOSE · AVAILABLE IN SPAWN OR WHILE DEAD</span></div>
+        <div id="heroSwapRoster" class="hero-swap-roster"></div>
+      </div>
+    </div>
     <div id="spectatorLabel" class="spectator-label hidden"></div>
     <div id="banner" class="banner"></div>
     <div id="killfeed" class="killfeed"></div>
@@ -269,6 +276,7 @@ function persistSettings() {
 }
 
 const rosterEl = document.querySelector('#roster');
+const heroSwapRoster = document.querySelector('#heroSwapRoster');
 const trainingHeroSelect = document.querySelector('#trainingHeroSelect');
 for (const hero of HEROES) {
   const opt = document.createElement('option');
@@ -289,6 +297,15 @@ for (const hero of HEROES) {
     [...rosterEl.children].forEach(x => x.classList.toggle('selected', x.dataset.hero === hero.id));
   };
   rosterEl.appendChild(b);
+}
+
+for (const hero of HEROES) {
+  const b = document.createElement('button');
+  b.className = 'hero-swap-option';
+  b.dataset.hero = hero.id;
+  b.innerHTML = `<span>${hero.universe}</span><strong>${hero.name}</strong><small>${hero.role}</small>`;
+  b.onclick = () => chooseInMatchHero(hero.id);
+  heroSwapRoster.appendChild(b);
 }
 
 const scene = new THREE.Scene();
@@ -624,6 +641,26 @@ function pulseEffect(position, color, radius = 3, duration = 0.45) {
   mesh.position.copy(position).add(new THREE.Vector3(0, 0.08, 0));
   scene.add(mesh);
   effects.push({ mesh, age: 0, duration, radius });
+}
+
+function applyHeroToFighter(fighter, hero, { preserveHp = true } = {}) {
+  if (!fighter || !hero) return;
+  const oldMax = fighter.userData.maxHp || hero.hp;
+  const oldHp = fighter.userData.hp || 0;
+  fighter.userData.hero = hero;
+  fighter.userData.maxHp = hero.hp;
+  fighter.userData.hp = preserveHp
+    ? THREE.MathUtils.clamp(oldMax > 0 ? oldHp * (hero.hp / oldMax) : oldHp, 0, hero.hp)
+    : hero.hp;
+
+  const roleScale = hero.role === 'Vanguard' ? 1.16 : hero.role === 'Duelist' ? 0.92 : 1;
+  fighter.userData.body.material.color.setHex(hero.color);
+  fighter.userData.body.scale.set(roleScale, hero.role === 'Vanguard' ? 1.08 : 1, roleScale);
+  fighter.userData.head.material.color.set(new THREE.Color(hero.color).offsetHSL(0, 0, 0.12));
+  fighter.userData.shoulders.material.color.setHex(hero.color);
+  fighter.userData.shoulders.scale.x = hero.role === 'Vanguard' ? 1.18 : hero.role === 'Duelist' ? 0.9 : 1;
+  fighter.userData.baseHeadY = hero.role === 'Vanguard' ? 2.18 : 2.08;
+  fighter.userData.head.position.y = fighter.userData.baseHeadY;
 }
 
 function makeFighter(hero, team, isPlayer = false, isRemote = false, networkId = null) {
@@ -1020,12 +1057,7 @@ function switchTrainingHero(heroId) {
   if (!trainingMode || !player) return;
   selectedHero = getHero(heroId);
   trainingHeroSelect.value = selectedHero.id;
-  player.userData.hero = selectedHero;
-  player.userData.maxHp = selectedHero.hp;
-  player.userData.hp = selectedHero.hp;
-  player.userData.body.material.color.setHex(selectedHero.color);
-  player.userData.shoulders.material.color.setHex(selectedHero.color);
-  player.userData.head.material.color.set(new THREE.Color(selectedHero.color).offsetHSL(0, 0, 0.12));
+  applyHeroToFighter(player, selectedHero, { preserveHp: false });
   player.userData.accent.material.color.setHex(0xa7ddff);
   heroResource = 0;
   ultimateCharge = trainingInfiniteUlt ? 100 : 0;
@@ -1150,6 +1182,51 @@ function startMatch(players = networkPlayers) {
   renderer.domElement.requestPointerLock();
 }
 
+function canOpenHeroSwap() {
+  if (!matchStarted || trainingMode || matchOver || !player) return false;
+  if (!player.userData.alive) return true;
+  const base = player.userData.team === 'blue' ? BLUE_SPAWN : RED_SPAWN;
+  return player.position.distanceTo(base) <= 10.5;
+}
+
+function setHeroSwapOpen(open) {
+  heroSwapOpen = Boolean(open && canOpenHeroSwap());
+  document.querySelector('#heroSwapPanel')?.classList.toggle('hidden', !heroSwapOpen);
+  if (heroSwapOpen) {
+    document.exitPointerLock?.();
+    for (const button of heroSwapRoster.children) {
+      button.classList.toggle('selected', button.dataset.hero === selectedHero.id);
+    }
+  } else if (matchStarted) {
+    renderer.domElement.requestPointerLock?.();
+  }
+}
+
+function chooseInMatchHero(heroId) {
+  if (!heroSwapOpen || !player) return;
+  const hero = getHero(heroId);
+  if (hero.id === selectedHero.id) return setHeroSwapOpen(false);
+
+  selectedHero = hero;
+  trainingHeroSelect.value = hero.id;
+  applyHeroToFighter(player, hero, { preserveHp: player.userData.alive });
+  heroResource = 0;
+  ultimateCharge = 0;
+  abilityReadyAt = 0;
+  secondaryReadyAt = 0;
+  teamUpReadyAt = 0;
+  flightUntil = 0;
+  temporalHistory = [];
+  gorrMarkedTarget = null;
+  gorrMarkUntil = 0;
+  activeTeamUp = null;
+  network.setHero(hero.id);
+  refreshTeamUp();
+  applyHudHero();
+  showBanner(`${hero.name.toUpperCase()} SELECTED`, 700);
+  setHeroSwapOpen(false);
+}
+
 function applyHudHero() {
   const h = selectedHero;
   document.querySelector('#heroName').textContent = h.name;
@@ -1229,6 +1306,8 @@ network.on('player-left', msg => {
 
 network.on('player-updated', msg => {
   networkPlayers = msg.players || networkPlayers;
+  const remote = remoteFighters.get(msg.id);
+  if (remote && msg.heroId) applyHeroToFighter(remote, getHero(msg.heroId), { preserveHp: true });
 });
 
 network.on('state', msg => {
@@ -1500,6 +1579,12 @@ addEventListener('keydown', e => {
     document.querySelector('#scoreboard')?.classList.remove('hidden');
     renderScoreboard();
   }
+  if (e.code === 'KeyH' && !e.repeat && matchStarted && !trainingMode) {
+    e.preventDefault();
+    setHeroSwapOpen(!heroSwapOpen);
+    return;
+  }
+  if (heroSwapOpen) return;
   if (e.code === 'KeyV' && !e.repeat) toggleShoulder();
   if (!player?.userData.alive && !e.repeat && (e.code === 'BracketLeft' || e.code === 'ArrowLeft')) cycleSpectator(-1);
   if (!player?.userData.alive && !e.repeat && (e.code === 'BracketRight' || e.code === 'ArrowRight')) cycleSpectator(1);
@@ -1520,7 +1605,7 @@ addEventListener('mousemove', e => {
 });
 renderer.domElement.addEventListener('click', () => matchStarted && renderer.domElement.requestPointerLock());
 addEventListener('mousedown', e => {
-  if (!matchStarted) return;
+  if (!matchStarted || heroSwapOpen) return;
   if (e.button === 0) playerShoot();
   if (e.button === 2) useSecondary();
 });
@@ -2672,7 +2757,7 @@ function updateHud(now) {
 
   if (!player.userData.alive) {
     const remain = Math.max(0, Math.ceil((respawnAt - now) / 1000));
-    showBanner(`RESPAWN IN ${remain} · [ / ] SPECTATE`, 300);
+    showBanner(`RESPAWN IN ${remain} · H CHANGE HERO · [ / ] SPECTATE`, 300);
   } else {
     document.querySelector('#spectatorLabel')?.classList.add('hidden');
     if (now < player.userData.stunnedUntil)
