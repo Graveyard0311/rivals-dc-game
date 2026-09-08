@@ -1,9 +1,36 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import crypto from 'node:crypto';
+import { getHero } from '../src/heroes.js';
 
 const PORT = Number(process.env.PORT || 8787);
 const wss = new WebSocketServer({ port: PORT });
 const lobbies = new Map();
+const RESPAWN_MS = 5000;
+
+function authoritativePlayerState(id, player) {
+  return {
+    type: 'player-authority',
+    id,
+    hp: player.hp,
+    maxHp: player.maxHp,
+    alive: player.alive,
+    respawnAt: player.respawnAt || 0
+  };
+}
+
+function broadcastPlayerAuthority(lobby, id) {
+  const player = lobby.clients.get(id);
+  if (!player) return;
+  broadcast(lobby, authoritativePlayerState(id, player));
+}
+
+function resetPlayerCombatState(player) {
+  const hero = getHero(player.heroId);
+  player.maxHp = hero.hp;
+  player.hp = hero.hp;
+  player.alive = true;
+  player.respawnAt = 0;
+}
 
 function code() {
   return crypto.randomBytes(3).toString('hex').toUpperCase();
@@ -58,11 +85,17 @@ function leaveCurrent(ws) {
 
 function joinLobby(ws, lobby, lobbyCode, msg) {
   const id = ws.meta.id;
+  const heroId = String(msg.heroId || 'superman');
+  const hero = getHero(heroId);
   const player = {
     ws,
     name: String(msg.name || 'Player').slice(0, 24),
-    heroId: String(msg.heroId || 'superman'),
-    team: assignTeam(lobby)
+    heroId,
+    team: assignTeam(lobby),
+    maxHp: hero.hp,
+    hp: hero.hp,
+    alive: true,
+    respawnAt: 0
   };
   lobby.clients.set(id, player);
   ws.meta.lobbyCode = lobbyCode;
@@ -117,16 +150,25 @@ wss.on('connection', ws => {
 
     if (msg.type === 'set-hero') {
       self.heroId = String(msg.heroId || self.heroId);
+      if (!self.alive) resetPlayerCombatState(self);
+      else {
+        const hero = getHero(self.heroId);
+        self.maxHp = hero.hp;
+        self.hp = Math.min(self.hp, self.maxHp);
+      }
       broadcast(lobby, { type: 'player-updated', id: ws.meta.id, heroId: self.heroId, players: snapshot(lobby) });
+      broadcastPlayerAuthority(lobby, ws.meta.id);
       return;
     }
 
     if (msg.type === 'start-match') {
       if (lobby.hostId !== ws.meta.id) return;
+      for (const player of lobby.clients.values()) resetPlayerCombatState(player);
       const mode = ['domination', 'tdm', 'convoy', 'convergence'].includes(msg.mode) ? msg.mode : 'domination';
       const difficulty = ['easy', 'normal', 'hard', 'expert'].includes(msg.difficulty) ? msg.difficulty : 'normal';
       const arena = ['nexus', 'gotham', 'themyscira'].includes(msg.arena) ? msg.arena : 'nexus';
       broadcast(lobby, { type: 'match-start', mode, difficulty, arena, seed: crypto.randomInt(0, 2 ** 31 - 1), players: snapshot(lobby) });
+      for (const [id] of lobby.clients) broadcastPlayerAuthority(lobby, id);
       return;
     }
 
@@ -137,8 +179,8 @@ wss.on('connection', ws => {
         t: Number(msg.t || Date.now()),
         position: msg.position,
         rotationY: Number(msg.rotationY || 0),
-        hp: Number(msg.hp || 0),
-        alive: Boolean(msg.alive)
+        hp: self.hp,
+        alive: self.alive
       }, ws.meta.id);
       return;
     }
@@ -185,18 +227,42 @@ wss.on('connection', ws => {
         const sourceTeam = lobby.hostId === ws.meta.id && (event.sourceTeam === 'blue' || event.sourceTeam === 'red')
           ? event.sourceTeam
           : self.team;
-        if (!target || target.team === sourceTeam || !Number.isFinite(amount) || amount <= 0) return;
+        if (!target || target.team === sourceTeam || !target.alive || !Number.isFinite(amount) || amount <= 0) return;
+        const dealt = Math.min(amount, 250);
+        target.hp = Math.max(0, target.hp - dealt);
+        let killed = false;
+        if (target.hp <= 0) {
+          target.alive = false;
+          target.respawnAt = Date.now() + RESPAWN_MS;
+          killed = true;
+        }
+
         send(target.ws, {
           type: 'combat-event',
           id: String(event.sourceId || ws.meta.id),
           event: {
             kind: 'damage',
-            amount: Math.min(amount, 250),
+            amount: dealt,
             source: String(event.source || 'attack').slice(0, 48),
             sourceName: String(event.sourceName || self.name || 'Opponent').slice(0, 48),
             sourceTeam
           }
         });
+        broadcastPlayerAuthority(lobby, targetId);
+
+        if (killed) {
+          broadcast(lobby, {
+            type: 'combat-event',
+            id: ws.meta.id,
+            event: {
+              kind: 'team-kill',
+              team: sourceTeam,
+              victimId: targetId,
+              killerId: ws.meta.id,
+              sourceName: String(event.sourceName || self.name || 'Opponent').slice(0, 48)
+            }
+          });
+        }
         return;
       }
 
@@ -286,27 +352,7 @@ wss.on('connection', ws => {
       }
 
       if (event.kind === 'death-confirmed') {
-        const killerId = String(event.killerId || '');
-        const killer = killerId ? lobby.clients.get(killerId) : null;
-        const claimedTeam = event.killerTeam === 'red' ? 'red' : event.killerTeam === 'blue' ? 'blue' : null;
-        const killerTeam = killer && killer.team !== self.team
-          ? killer.team
-          : claimedTeam && claimedTeam !== self.team
-            ? claimedTeam
-            : null;
-        if (!killerTeam) return;
-        const resolvedKillerId = killer && killer.team === killerTeam ? killerId : '';
-        broadcast(lobby, {
-          type: 'combat-event',
-          id: resolvedKillerId,
-          event: {
-            kind: 'team-kill',
-            team: killerTeam,
-            victimId: ws.meta.id,
-            killerId: resolvedKillerId,
-            sourceName: String(event.sourceName || (resolvedKillerId ? killer?.name : '') || 'Opponent').slice(0, 48)
-          }
-        });
+        return;
       }
     }
   });
@@ -314,5 +360,17 @@ wss.on('connection', ws => {
   ws.on('close', () => leaveCurrent(ws));
   ws.on('error', () => leaveCurrent(ws));
 });
+
+const respawnTimer = setInterval(() => {
+  const now = Date.now();
+  for (const lobby of lobbies.values()) {
+    for (const [id, player] of lobby.clients) {
+      if (player.alive || !player.respawnAt || now < player.respawnAt) continue;
+      resetPlayerCombatState(player);
+      broadcastPlayerAuthority(lobby, id);
+    }
+  }
+}, 250);
+respawnTimer.unref?.();
 
 console.log(`Rivals Collision WebSocket server listening on ws://localhost:${PORT}`);
