@@ -469,9 +469,40 @@ function makeFighter(hero, team, isPlayer = false, isRemote = false, networkId =
   const g = new THREE.Group();
   const mat = new THREE.MeshStandardMaterial({ color: hero.color, roughness: 0.35, metalness: 0.38 });
   const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.58, 1.05, 5, 10), mat);
+  const roleScale = hero.role === 'Vanguard' ? 1.16 : hero.role === 'Duelist' ? 0.92 : 1;
+  body.scale.set(roleScale, hero.role === 'Vanguard' ? 1.08 : 1, roleScale);
   body.position.y = 1.18;
   body.castShadow = true;
   g.add(body);
+
+  const head = new THREE.Mesh(
+    new THREE.SphereGeometry(hero.role === 'Vanguard' ? 0.42 : 0.36, 12, 10),
+    new THREE.MeshStandardMaterial({
+      color: new THREE.Color(hero.color).offsetHSL(0, 0, 0.12),
+      roughness: 0.42,
+      metalness: 0.18
+    })
+  );
+  head.position.y = hero.role === 'Vanguard' ? 2.18 : 2.08;
+  head.castShadow = true;
+  g.add(head);
+
+  const shoulderWidth = hero.role === 'Vanguard' ? 1.75 : hero.role === 'Duelist' ? 1.28 : 1.48;
+  const shoulders = new THREE.Mesh(
+    new THREE.BoxGeometry(shoulderWidth, 0.22, 0.42),
+    new THREE.MeshStandardMaterial({ color: hero.color, roughness: 0.4, metalness: 0.32 })
+  );
+  shoulders.position.y = 1.72;
+  shoulders.castShadow = true;
+  g.add(shoulders);
+
+  const accent = new THREE.Mesh(
+    new THREE.TorusGeometry(0.23, 0.055, 8, 18),
+    new THREE.MeshBasicMaterial({ color: team === 'blue' ? 0xa7ddff : 0xffa3af })
+  );
+  accent.position.set(0, 1.45, -0.52 * roleScale);
+  accent.rotation.x = Math.PI / 2;
+  g.add(accent);
 
   const marker = new THREE.Mesh(
     new THREE.SphereGeometry(0.13, 10, 10),
@@ -500,7 +531,10 @@ function makeFighter(hero, team, isPlayer = false, isRemote = false, networkId =
     respawnAt: 0, lastAttack: 0, target: null, abilityReadyAt: 0,
     ultReadyAt: 18000 + Math.random() * 9000, shieldUntil: 0,
     stunnedUntil: 0, empoweredUntil: 0, rootedUntil: 0, slowedUntil: 0, hasteUntil: 0,
-    flankSign: Math.random() < 0.5 ? -1 : 1, healthGroup, healthFill
+    flankSign: Math.random() < 0.5 ? -1 : 1, healthGroup, healthFill,
+    head, shoulders, accent, baseBodyY: body.position.y, baseHeadY: head.position.y,
+    baseShoulderY: shoulders.position.y, visualPhase: Math.random() * Math.PI * 2,
+    lastVisualPosition: g.position.clone()
   };
   scene.add(g);
   return g;
@@ -531,6 +565,7 @@ function resetFighter(f, index = 0) {
   f.userData.lastNetworkAttackerId = null;
   f.userData.lastNetworkSourceTeam = null;
   f.userData.lastNetworkSourceName = null;
+  f.userData.lastVisualPosition.copy(f.position);
 }
 
 function addKillFeed(text) {
@@ -1710,6 +1745,27 @@ function updateProjectiles(dt) {
   }
 }
 
+function updateFighterVisuals(now) {
+  for (const f of fighters) {
+    if (!f.userData.alive) continue;
+    const body = f.userData.body;
+    const head = f.userData.head;
+    const shoulders = f.userData.shoulders;
+    const last = f.userData.lastVisualPosition;
+    if (!body || !head || !shoulders || !last) continue;
+
+    const moved = f.position.distanceToSquared(last) > 0.0008;
+    const phase = now * (moved ? 0.0105 : 0.003) + f.userData.visualPhase;
+    const bob = Math.sin(phase) * (moved ? 0.055 : 0.018);
+    body.position.y = f.userData.baseBodyY + bob;
+    head.position.y = f.userData.baseHeadY + bob * 0.72;
+    shoulders.position.y = f.userData.baseShoulderY + bob * 0.86;
+    body.rotation.z = THREE.MathUtils.lerp(body.rotation.z, moved ? Math.sin(phase * 0.5) * 0.025 : 0, 0.18);
+    shoulders.rotation.z = THREE.MathUtils.lerp(shoulders.rotation.z, moved ? -body.rotation.z * 1.4 : 0, 0.16);
+    last.copy(f.position);
+  }
+}
+
 function updateFighterBars() {
   for (const f of fighters) {
     const bar = f.userData.healthGroup;
@@ -1816,6 +1872,7 @@ function animate() {
     updateRespawns(now);
     updateHud(now);
     updateProjectiles(dt);
+    updateFighterVisuals(now);
     updateFighterBars();
   } else {
     camera.position.set(0, 20, 35);
