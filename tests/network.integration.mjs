@@ -294,6 +294,16 @@ try {
   assert.equal(bravoStats.kills, 0);
   assert.equal(bravoStats.deaths, 1);
 
+  const heroUpdateOnA = nextMessage(a, m => m.type === 'player-updated' && m.id === helloB.playerId && m.heroId === 'doctor-doom');
+  const deadSwapAuthorityB = nextMessage(b, m => m.type === 'player-authority' && m.id === helloB.playerId && m.maxHp === 430);
+  send(b, 'set-hero', { heroId: 'doctor-doom' });
+  const heroUpdate = await heroUpdateOnA;
+  const deadSwapAuthority = await deadSwapAuthorityB;
+  assert.equal(heroUpdate.heroId, 'doctor-doom');
+  assert.equal(deadSwapAuthority.alive, false);
+  assert.equal(deadSwapAuthority.hp, 0);
+  assert.equal(deadSwapAuthority.maxHp, 430);
+
   const effectOnB = nextMessage(b, m => m.type === 'combat-event' && m.event?.kind === 'ability-effect');
   send(a, 'combat-event', {
     event: {
@@ -366,6 +376,7 @@ try {
   const respawnAuthorityB = await nextMessage(b, m => m.type === 'player-authority' && m.id === helloB.playerId && m.alive === true, 7000);
   console.log('checkpoint: respawn authority');
   assert.equal(respawnAuthorityB.hp, respawnAuthorityB.maxHp);
+  assert.equal(respawnAuthorityB.maxHp, 430);
 
   console.log('network integration: PASS');
 } finally {
