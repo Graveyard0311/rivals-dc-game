@@ -208,3 +208,16 @@ Players receive **2.5 seconds of spawn protection** on initial spawn and respawn
 ## Lobby ready states
 
 Private lobbies now track per-player readiness. The host is automatically ready when creating the lobby; joining players use the **Ready** button before launch. The host cannot start until every non-host participant is ready.
+
+
+## Post-match results
+
+Normal matches now end on a persistent results screen instead of automatically reloading. The screen shows:
+
+- winning team and mode/map context
+- match MVP based on synchronized K/D performance
+- both team rosters with hero, role, kills, and deaths
+- the local player's final K/D
+- an explicit **Return to Lobby / Menu** action
+
+Private-match clients open the same results flow when the host-authoritative match state reports the match as complete.
