@@ -55,7 +55,8 @@ function snapshot(lobby) {
     id,
     name: c.name,
     heroId: c.heroId,
-    team: c.team
+    team: c.team,
+    ready: Boolean(c.ready)
   }));
 }
 
@@ -113,6 +114,7 @@ function joinLobby(ws, lobby, lobbyCode, msg) {
     respawnAt: 0,
     shieldUntil: 0,
     spawnProtectedUntil: Date.now() + 2500,
+    ready: lobby.clients.size === 0,
     kills: 0,
     deaths: 0
   };
@@ -167,6 +169,12 @@ wss.on('connection', ws => {
     const self = lobby.clients.get(ws.meta.id);
     if (!self) return;
 
+    if (msg.type === 'set-ready') {
+      self.ready = Boolean(msg.ready);
+      broadcast(lobby, { type: 'player-ready', id: ws.meta.id, ready: self.ready, players: snapshot(lobby) });
+      return;
+    }
+
     if (msg.type === 'set-hero') {
       const requested = getHero(String(msg.heroId || self.heroId));
       self.heroId = requested.id;
@@ -180,6 +188,11 @@ wss.on('connection', ws => {
 
     if (msg.type === 'start-match') {
       if (lobby.hostId !== ws.meta.id) return;
+      const waiting = [...lobby.clients.entries()].filter(([id, player]) => id !== lobby.hostId && !player.ready);
+      if (waiting.length) {
+        send(ws, { type: 'error', code: 'PLAYERS_NOT_READY', waiting: waiting.map(([id, p]) => ({ id, name: p.name })) });
+        return;
+      }
       for (const player of lobby.clients.values()) {
         resetPlayerCombatState(player);
         player.kills = 0;

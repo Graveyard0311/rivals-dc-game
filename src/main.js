@@ -72,6 +72,7 @@ let lobbyHostId = null;
 let lastNetworkStateAt = 0;
 let lastMatchStateAt = 0;
 let networkPlayers = [];
+let localReady = false;
 const remoteFighters = new Map();
 
 app.innerHTML = `
@@ -118,6 +119,7 @@ app.innerHTML = `
         <input id="lobbyCode" maxlength="6" placeholder="Lobby code">
         <button id="createLobbyBtn" class="network-btn">CREATE PRIVATE LOBBY</button>
         <button id="joinLobbyBtn" class="network-btn">JOIN LOBBY</button>
+        <button id="readyLobbyBtn" class="network-btn hidden">READY</button>
         <div id="networkStatus" class="network-status">Offline mode ready</div>
       </div>
       <button id="deployBtn" class="deploy">DEPLOY OFFLINE BATTLE</button>
@@ -1252,7 +1254,33 @@ function applyHudHero() {
 
 const networkStatus = document.querySelector('#networkStatus');
 const deployBtn = document.querySelector('#deployBtn');
+const readyLobbyBtn = document.querySelector('#readyLobbyBtn');
 const trainingBtn = document.querySelector('#trainingBtn');
+
+function renderLobbyReadyState() {
+  if (!joinedLobby) {
+    readyLobbyBtn.classList.add('hidden');
+    return;
+  }
+  const me = networkPlayers.find(p => p.id === network.playerId);
+  localReady = Boolean(me?.ready);
+  readyLobbyBtn.classList.remove('hidden');
+  readyLobbyBtn.textContent = localReady ? 'READY ✓' : 'READY';
+  readyLobbyBtn.classList.toggle('selected', localReady);
+
+  const readyCount = networkPlayers.filter(p => p.ready).length;
+  const waiting = networkPlayers.filter(p => !p.ready && p.id !== lobbyHostId);
+  const host = network.playerId === lobbyHostId;
+  setNetworkStatus(
+    `Lobby ${network.lobbyCode} · ${readyCount}/${networkPlayers.length} ready${host && waiting.length ? ` · waiting: ${waiting.map(p => p.name).join(', ')}` : ''}`
+  );
+  if (host) deployBtn.textContent = waiting.length ? 'WAITING FOR READY' : 'START PRIVATE MATCH';
+}
+
+readyLobbyBtn.onclick = () => {
+  if (!joinedLobby) return;
+  network.setReady(!localReady);
+};
 
 trainingBtn.onclick = startTrainingRange;
 trainingHeroSelect.onchange = e => switchTrainingHero(e.target.value);
@@ -1291,13 +1319,18 @@ network.on('joined', msg => {
   lobbyHostId = msg.hostId;
   document.querySelector('#lobbyCode').value = msg.lobbyCode;
   const host = msg.playerId === msg.hostId;
-  setNetworkStatus(`Lobby ${msg.lobbyCode} · ${msg.players.length}/12 · ${host ? 'HOST' : msg.team.toUpperCase()}`);
   deployBtn.textContent = host ? 'START PRIVATE MATCH' : 'WAITING FOR HOST';
+  renderLobbyReadyState();
 });
 
 network.on('player-joined', msg => {
   networkPlayers = msg.players || networkPlayers;
-  setNetworkStatus(`Lobby ${network.lobbyCode} · ${msg.players.length}/12 players`);
+  renderLobbyReadyState();
+});
+
+network.on('player-ready', msg => {
+  networkPlayers = msg.players || networkPlayers;
+  renderLobbyReadyState();
 });
 
 network.on('player-left', msg => {
@@ -1310,13 +1343,14 @@ network.on('player-left', msg => {
     if (idx >= 0) fighters.splice(idx, 1);
     remoteFighters.delete(msg.id);
   }
-  setNetworkStatus(`Lobby ${network.lobbyCode} · ${msg.players.length}/12 players`);
+  renderLobbyReadyState();
 });
 
 network.on('player-updated', msg => {
   networkPlayers = msg.players || networkPlayers;
   const remote = remoteFighters.get(msg.id);
   if (remote && msg.heroId) applyHeroToFighter(remote, getHero(msg.heroId), { preserveHp: true });
+  renderLobbyReadyState();
 });
 
 network.on('state', msg => {
@@ -1540,7 +1574,12 @@ network.on('match-start', msg => {
 });
 
 network.on('error', msg => {
-  setNetworkStatus(msg.code === 'LOBBY_NOT_FOUND' ? 'Lobby not found' : msg.code || 'Network error', true);
+  const text = msg.code === 'LOBBY_NOT_FOUND'
+    ? 'Lobby not found'
+    : msg.code === 'PLAYERS_NOT_READY'
+      ? `Players not ready: ${(msg.waiting || []).map(p => p.name).join(', ')}`
+      : msg.code || 'Network error';
+  setNetworkStatus(text, true);
 });
 
 document.querySelector('#createLobbyBtn').onclick = async () => {
