@@ -41,7 +41,7 @@
 
 ## Milestone E — Content expansion
 - Full priority roster ✅ 33-character prototype roster / expanding
-- Individual bespoke hero kits ✅ / expanding
+- Individual bespoke hero kits ✅ / expanding — Juggernaut Momentum, Gorr Hatred, Flash Speed Force
 - Team Deathmatch ✅
 - Team-up abilities ✅ reusable pair registry + five prototype team-ups
 - Additional arenas ✅ Nexus Arena / Gotham Industrial / Themyscira Ruins
