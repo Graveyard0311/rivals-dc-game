@@ -46,7 +46,7 @@
 - Team-up abilities ✅ reusable pair registry + five prototype team-ups
 - Additional arenas ✅ Nexus Arena / Gotham Industrial / Themyscira Ruins
 - Convoy/payload ✅ host-authoritative escort mode
-- Hybrid/Convergence mode — next
+- Hybrid/Convergence mode ✅ neutral capture → winning-team escort
 - More bot personalities/difficulty levels ✅ Easy/Normal/Hard/Expert tuning profiles
 
 ## Milestone F — Packaging/polish
