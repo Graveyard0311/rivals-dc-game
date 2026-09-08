@@ -121,3 +121,12 @@ See [TESTING.md](./TESTING.md) for offline testing, two-client private match set
 ## Training Range
 
 Choose **Enter Training Range** from the hero-select screen for a no-score practice environment. The range includes stationary targets, moving targets, and one hostile target. Training controls support live hero switching, cooldown reset, ultimate fill, infinite ultimate, and target reset so hero kits and resource systems can be exercised quickly without a full match.
+
+
+## Flagship hero mechanics
+
+Additional bespoke hero behaviors now include:
+
+- **Batman** — Grapnel Launch adds vertical traversal; holding jump while airborne reduces fall speed for glide-like movement.
+- **Superman** — Solar Flight enables temporary controlled aerial movement with increased travel speed.
+- **Professor X** — Mental Command now targets a nearby ally, granting haste plus a short protective shield.
