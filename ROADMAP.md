@@ -75,3 +75,7 @@
 - Persistent keyboard remapping ✅
 - Standard Gamepad API controller support ✅
 - Simultaneous keyboard/mouse + controller input ✅
+
+
+## Core combat additions
+- Universal quick melee ✅ keyboard + controller + destructible interaction

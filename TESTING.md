@@ -230,3 +230,12 @@ This is a repository-level GitHub Pages enablement restriction, not a game build
 3. Destroy nearby cover and confirm the camera can move through the newly opened space.
 4. Press **V** and confirm the camera swaps shoulders without changing aim direction.
 5. With a controller, click **R3** and confirm the same shoulder swap behavior.
+
+
+## Quick melee test
+
+1. Play a ranged hero and press **C** near an enemy; confirm short-range damage and light knockback.
+2. Repeat with **B/Circle** on controller.
+3. Confirm repeated presses respect the short melee lockout.
+4. Use quick melee against breakable cover and confirm it loses HP.
+5. In a private match, quick-melee a remote human and confirm the normal server-authoritative damage path resolves the hit.

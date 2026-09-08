@@ -168,3 +168,13 @@ The third-person camera now resolves collision against arena structures and live
 
 - **V** — swap left/right shoulder
 - **R3 / Right Stick Click** — swap shoulder on controller
+
+
+## Universal quick melee
+
+Every hero now has a short-range quick melee separate from their primary attack.
+
+- **C** — quick melee on keyboard
+- **B / Circle** — quick melee on standard controller layouts
+
+Quick melee has a short lockout, can finish nearby enemies, applies light knockback, and can damage destructible cover.

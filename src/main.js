@@ -47,6 +47,7 @@ let grounded = true;
 let cameraShake = 0;
 let shoulderSide = 1;
 let lastShot = 0;
+let meleeReadyAt = 0;
 let abilityReadyAt = 0;
 let secondaryReadyAt = 0;
 let ultimateCharge = 0;
@@ -128,7 +129,7 @@ app.innerHTML = `
       <span id="redScore" class="team red">LEGION 0</span>
     </div>
     <div class="crosshair"></div><div id="damagePop" class="damage-pop"></div>
-    <div class="instructions">WASD move · Mouse aim · LMB primary · Shift ability · Q ultimate · Space jump</div>
+    <div class="instructions">WASD move · Mouse aim · LMB primary · RMB secondary · C melee · Shift ability · Q ultimate · Space jump</div>
     <div class="hero">
       <div id="heroName" class="hero-name"></div>
       <div id="heroRole" class="role"></div>
@@ -744,6 +745,7 @@ function pollGamepad(dt) {
   if (pressed(5)) usePlayerAbility();
   if (pressed(4)) useTeamUp();
   if (pressed(3)) useUltimate();
+  if (pressed(1)) useQuickMelee();
   if (pressed(11)) toggleShoulder();
 
   const scoreboardHeld = buttons[8];
@@ -1497,6 +1499,7 @@ addEventListener('keydown', e => {
     renderScoreboard();
   }
   if (e.code === 'KeyV' && !e.repeat) toggleShoulder();
+  if (e.code === 'KeyC' && !e.repeat) useQuickMelee();
   if (e.code === settings.keybinds.ability) usePlayerAbility();
   if (e.code === 'KeyF') useTeamUp();
   if (e.code === settings.keybinds.ultimate) useUltimate();
@@ -1558,6 +1561,62 @@ function playerDamageAmount(base, target = null) {
 function gainHeroResource(amount) {
   if (!selectedHero.resourceKind) return;
   heroResource = THREE.MathUtils.clamp(heroResource + amount, 0, 100);
+}
+
+function useQuickMelee() {
+  if (!player?.userData.alive || matchOver || performance.now() < player.userData.stunnedUntil) return;
+  const now = performance.now();
+  if (now < meleeReadyAt) return;
+  meleeReadyAt = now + 800;
+
+  const forward = playerForward();
+  const enemies = living(opposingTeam(player.userData.team));
+  let target = null;
+  let targetDist = Infinity;
+
+  for (const enemy of enemies) {
+    const toEnemy = enemy.position.clone().sub(player.position);
+    const dist = toEnemy.length();
+    if (dist > 4.4) continue;
+    toEnemy.y = 0;
+    if (!toEnemy.lengthSq()) continue;
+    if (forward.dot(toEnemy.normalize()) < 0.28) continue;
+    if (dist < targetDist) {
+      target = enemy;
+      targetDist = dist;
+    }
+  }
+
+  const baseDamage = selectedHero.attackType === 'melee' ? 32 : 38;
+  if (target) {
+    damage(target, playerDamageAmount(baseDamage, target), player);
+    applyEffect(target, 'knockback', {
+      amount: 1.6,
+      actor: player,
+      sourcePosition: { x: player.position.x, y: player.position.y, z: player.position.z }
+    });
+    pulseEffect(target.position, selectedHero.color, 1.7, 0.16);
+    ultimateCharge = Math.min(100, ultimateCharge + 2.5);
+  } else {
+    let prop = null;
+    let propDist = Infinity;
+    for (const candidate of destructibles) {
+      if (!candidate.alive) continue;
+      const toProp = candidate.mesh.position.clone().sub(player.position);
+      const dist = toProp.length();
+      if (dist > 4.4) continue;
+      toProp.y = 0;
+      if (!toProp.lengthSq() || forward.dot(toProp.normalize()) < 0.25) continue;
+      if (dist < propDist) {
+        prop = candidate;
+        propDist = dist;
+      }
+    }
+    if (prop) damageDestructible(prop, 48, player);
+  }
+
+  cameraShake = Math.max(cameraShake, 0.18);
+  tone(105, 0.055, 0.022, 'square');
 }
 
 function playerShoot() {
