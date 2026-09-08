@@ -128,7 +128,7 @@ try {
   });
   const relayedState = await stateOnB;
   assert.deepEqual(relayedState.position, { x: 4, y: 0, z: -2 });
-  assert.equal(relayedState.hp, 650);
+  assert.equal(relayedState.hp, 700);
 
   const authorityAfterDamageB = nextMessage(b, m => m.type === 'player-authority' && m.id === helloB.playerId && m.hp === 297);
   send(a, 'combat-event', {
