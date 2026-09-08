@@ -315,6 +315,8 @@ scene.add(new THREE.GridHelper(120, 60, 0x94b9e3, 0x566a86));
 
 const collisionBoxes = [];
 const arenaStructures = [];
+const destructibles = [];
+const destructibleById = new Map();
 function makeBox(x, z, w, h, d, color = 0x60748e) {
   const mesh = new THREE.Mesh(
     new THREE.BoxGeometry(w, h, d),
@@ -346,6 +348,121 @@ for (let i = -2; i <= 2; i++) {
   tower.add(sign);
 }
 
+for (let i = 0; i < 6; i++) {
+  const mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(1, 1, 1),
+    new THREE.MeshStandardMaterial({ color: 0x7d8ea1, roughness: 0.72, metalness: 0.16 })
+  );
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  scene.add(mesh);
+  destructibles.push({
+    index: i,
+    id: '',
+    mesh,
+    bounds: new THREE.Box3(),
+    hp: 1,
+    maxHp: 1,
+    alive: true
+  });
+}
+
+function removeCollisionBound(bounds) {
+  const index = collisionBoxes.indexOf(bounds);
+  if (index >= 0) collisionBoxes.splice(index, 1);
+}
+
+function refreshDestructibleCollision(prop) {
+  removeCollisionBound(prop.bounds);
+  if (!prop.alive) return;
+  prop.mesh.updateMatrixWorld(true);
+  prop.bounds.setFromObject(prop.mesh);
+  collisionBoxes.push(prop.bounds);
+}
+
+function applyDestructiblePreset(arena) {
+  destructibleById.clear();
+  destructibles.forEach((prop, index) => {
+    const preset = arena.destructibles?.[index];
+    if (!preset) {
+      prop.alive = false;
+      prop.mesh.visible = false;
+      removeCollisionBound(prop.bounds);
+      return;
+    }
+    const [id, x, z, w, h, d, color, hp] = preset;
+    prop.id = id;
+    prop.maxHp = hp;
+    prop.hp = hp;
+    prop.alive = true;
+    prop.mesh.visible = true;
+    prop.mesh.position.set(x, h / 2, z);
+    prop.mesh.scale.set(w, h, d);
+    prop.mesh.material.color.setHex(color);
+    prop.mesh.material.emissive?.set(0x000000);
+    destructibleById.set(id, prop);
+    refreshDestructibleCollision(prop);
+  });
+}
+
+function resetDestructibles() {
+  applyDestructiblePreset(getArena(selectedArena));
+}
+
+function setDestructibleState(prop, hp, alive) {
+  if (!prop) return;
+  prop.hp = THREE.MathUtils.clamp(Number(hp || 0), 0, prop.maxHp);
+  const shouldLive = Boolean(alive) && prop.hp > 0;
+  if (prop.alive === shouldLive && prop.mesh.visible === shouldLive) return;
+  prop.alive = shouldLive;
+  prop.mesh.visible = shouldLive;
+  refreshDestructibleCollision(prop);
+}
+
+function destructibleAtPoint(position, radius = 0.24) {
+  return destructibles.find(prop => prop.alive && prop.bounds.distanceToPoint(position) <= radius) || null;
+}
+
+function damageDestructible(prop, amount, actor = null, networkApplied = false) {
+  if (!prop?.alive || !Number.isFinite(amount) || amount <= 0) return false;
+
+  if (joinedLobby && network.connected && network.playerId !== lobbyHostId && actor === player && !networkApplied) {
+    network.sendCombatEvent({
+      kind: 'world-damage',
+      destructibleId: prop.id,
+      amount,
+      sourceName: selectedHero.name
+    });
+    showHitFeedback(amount);
+    return true;
+  }
+
+  prop.hp = Math.max(0, prop.hp - amount);
+  prop.mesh.material.emissive?.set(0xffffff);
+  setTimeout(() => prop.mesh?.material?.emissive?.set(0x000000), 65);
+
+  if (prop.hp <= 0) {
+    prop.alive = false;
+    prop.mesh.visible = false;
+    refreshDestructibleCollision(prop);
+    pulseEffect(prop.mesh.position, 0xffc27a, 5.5, 0.55);
+    if (actor === player) showBanner('COVER DESTROYED', 450);
+  }
+  return true;
+}
+
+function damageDestructiblesAlongSegment(start, end, radius, amount, actor) {
+  const line = new THREE.Line3(start.clone(), end.clone());
+  const closest = new THREE.Vector3();
+  for (const prop of destructibles) {
+    if (!prop.alive) continue;
+    line.closestPointToPoint(prop.mesh.position, true, closest);
+    if (closest.distanceTo(prop.mesh.position) <= radius + Math.max(prop.mesh.scale.x, prop.mesh.scale.z) * 0.45) {
+      damageDestructible(prop, amount, actor);
+    }
+  }
+}
+
 function applyArenaPreset(id) {
   const arena = getArena(id);
   selectedArena = arena.id;
@@ -366,6 +483,7 @@ function applyArenaPreset(id) {
     mesh.updateMatrixWorld(true);
     collisionBoxes.push(new THREE.Box3().setFromObject(mesh));
   });
+  applyDestructiblePreset(arena);
 }
 
 const objective = new THREE.Mesh(
@@ -912,6 +1030,7 @@ function startTrainingRange() {
   if (joinedLobby) return setNetworkStatus('Leave the private lobby before entering Training Range', true);
   trainingMode = true;
   matchStarted = true;
+  resetDestructibles();
   matchOver = false;
   selectedMode = 'training';
   clearExistingFighters();
@@ -961,6 +1080,7 @@ function startMatch(players = networkPlayers) {
   if (matchStarted) return;
   matchStarted = true;
   matchOver = false;
+  resetDestructibles();
   blueScore = 0;
   redScore = 0;
   convoyProgress = 0;
@@ -1131,6 +1251,12 @@ network.on('match-state', msg => {
   objectiveState = state.objectiveState || 'CAPTURE THE NEXUS';
   matchOver = Boolean(state.matchOver);
 
+  for (const snap of state.destructibles || []) {
+    const prop = destructibleById.get(String(snap.id || ''));
+    if (!prop) continue;
+    setDestructibleState(prop, Number(snap.hp || 0), Boolean(snap.alive));
+  }
+
   for (const snap of state.bots || []) {
     const bot = fighters.find(f =>
       !f.userData.isPlayer &&
@@ -1235,6 +1361,15 @@ network.on('combat-event', msg => {
       networkApplied: true,
       sourcePosition: msg.event.sourcePosition || null
     });
+    return;
+  }
+
+  if (msg.event.kind === 'world-damage' && network.playerId === lobbyHostId) {
+    const prop = destructibleById.get(String(msg.event.destructibleId || ''));
+    if (prop) {
+      const attacker = remoteFighters.get(msg.id) || null;
+      damageDestructible(prop, Number(msg.event.amount || 0), attacker, true);
+    }
     return;
   }
 
@@ -1448,6 +1583,19 @@ function playerShoot() {
       if (selectedHero.resourceKind === 'speedForce') gainHeroResource(-8);
       ultimateCharge = Math.min(100, ultimateCharge + 5);
       pulseEffect(best.position, selectedHero.color, 1.8, 0.18);
+    } else {
+      let prop = null;
+      let propDist = Infinity;
+      for (const candidate of destructibles) {
+        if (!candidate.alive) continue;
+        const toProp = candidate.mesh.position.clone().sub(player.position);
+        const dist = toProp.length();
+        if (dist > radius + 1.5) continue;
+        toProp.y = 0;
+        if (!toProp.lengthSq() || forward.dot(toProp.normalize()) < 0.2) continue;
+        if (dist < propDist) { prop = candidate; propDist = dist; }
+      }
+      if (prop) damageDestructible(prop, playerDamageAmount(selectedHero.damage * 1.2), player);
     }
     return;
   }
@@ -1461,9 +1609,20 @@ function playerShoot() {
 
   const targets = enemies.map(f => f.userData.body);
   const hits = raycaster.intersectObjects(targets);
-  if (!hits.length) return;
-  const target = fighters.find(f => f.userData.body === hits[0].object);
-  if (target && player.position.distanceTo(target.position) <= selectedHero.range + 4) {
+  const propHits = raycaster.intersectObjects(destructibles.filter(p => p.alive).map(p => p.mesh));
+  const nearestFighter = hits[0] || null;
+  const nearestProp = propHits[0] || null;
+  const maxRange = selectedHero.range + 4;
+
+  if (nearestProp && nearestProp.distance <= maxRange && (!nearestFighter || nearestProp.distance < nearestFighter.distance)) {
+    const prop = destructibles.find(p => p.mesh === nearestProp.object);
+    if (prop) damageDestructible(prop, playerDamageAmount(selectedHero.damage), player);
+    return;
+  }
+
+  if (!nearestFighter) return;
+  const target = fighters.find(f => f.userData.body === nearestFighter.object);
+  if (target && player.position.distanceTo(target.position) <= maxRange) {
     damage(target, playerDamageAmount(selectedHero.damage, target), player);
     if (selectedHero.resourceKind === 'hatred') gainHeroResource(7);
     ultimateCharge = Math.min(100, ultimateCharge + 4.5);
@@ -1562,9 +1721,14 @@ function useSecondary() {
     } else {
       const targets = enemies.map(f => f.userData.body);
       const hits = raycaster.intersectObjects(targets);
-      if (hits.length) {
+      const propHits = raycaster.intersectObjects(destructibles.filter(p => p.alive).map(p => p.mesh));
+      const maxRange = selectedHero.range + 7;
+      if (propHits.length && propHits[0].distance <= maxRange && (!hits.length || propHits[0].distance < hits[0].distance)) {
+        const prop = destructibles.find(p => p.mesh === propHits[0].object);
+        if (prop) damageDestructible(prop, playerDamageAmount(selectedHero.damage * 1.65), player);
+      } else if (hits.length) {
         const target = fighters.find(f => f.userData.body === hits[0].object);
-        if (target && player.position.distanceTo(target.position) <= selectedHero.range + 7) {
+        if (target && player.position.distanceTo(target.position) <= maxRange) {
           damage(target, playerDamageAmount(selectedHero.damage * 1.65), player);
           pulseEffect(target.position, selectedHero.color, 2.2, 0.3);
         }
@@ -1639,6 +1803,7 @@ function usePlayerAbility() {
     const forward = playerForward();
     const start = player.position.clone();
     moveWithCollision(player, forward.clone().multiplyScalar(12 + heroResource * 0.04));
+    damageDestructiblesAlongSegment(start, player.position, 1.8, 130 + heroResource * 0.9, player);
     const enemies = living(opposingTeam(player.userData.team));
     for (const enemy of enemies.filter(e => e.position.distanceTo(player.position) < 5.2)) {
       damage(enemy, playerDamageAmount(70 + heroResource * 0.55, enemy), player);
@@ -2215,7 +2380,14 @@ function updateProjectiles(dt) {
     p.life -= dt;
     const step = p.velocity.clone().multiplyScalar(dt);
     const next = p.mesh.position.clone().add(step);
-    let removed = p.life <= 0 || overlapsWorld(next, 0.18);
+    const prop = destructibleAtPoint(next, 0.24);
+    let removed = p.life <= 0;
+    if (!removed && prop) {
+      damageDestructible(prop, p.damage, p.actor);
+      pulseEffect(next, p.actor.userData.hero.color, 1.2, 0.18);
+      removed = true;
+    }
+    if (!removed && overlapsWorld(next, 0.18)) removed = true;
 
     if (!removed) {
       p.mesh.position.copy(next);
@@ -2376,6 +2548,11 @@ function animate() {
       updateObjective(dt);
       if (joinedLobby && network.connected && now - lastMatchStateAt >= 100) {
         lastMatchStateAt = now;
+        const destructibleState = destructibles.map(prop => ({
+          id: prop.id,
+          hp: prop.hp,
+          alive: prop.alive
+        }));
         const bots = fighters
           .filter(f => !f.userData.isPlayer && !f.userData.isRemote)
           .map(f => ({
@@ -2392,7 +2569,8 @@ function animate() {
         network.send('match-state', {
           state: {
             blueScore, redScore, objectiveState, matchOver, convoyProgress, convoyTimeRemaining,
-            convergencePhase, convergenceBlueCapture, convergenceRedCapture, convergenceEscortTeam, bots
+            convergencePhase, convergenceBlueCapture, convergenceRedCapture, convergenceEscortTeam,
+            destructibles: destructibleState, bots
           }
         });
       }

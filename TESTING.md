@@ -211,3 +211,13 @@ This is a repository-level GitHub Pages enablement restriction, not a game build
 3. Apply a friendly shield to a human, then deal damage before it expires and verify the authoritative damage is reduced.
 4. After the shield expires, verify subsequent damage resolves at full value.
 5. Confirm death, K/D, and respawn timing remain synchronized after heals and shields.
+
+
+## Destruction test
+
+1. Enter any arena and identify the smaller breakable cover pieces near the central lanes.
+2. Damage them with projectiles and beam/hitscan attacks; confirm HP loss eventually removes the mesh and collision.
+3. Use a melee hero at close range and confirm cover can be smashed.
+4. As Juggernaut, charge through breakable cover and confirm destruction along the path.
+5. In a two-client private match, destroy cover from the non-host client and confirm the host applies the damage and both clients show the same open lane.
+6. Confirm destroyed cover resets when a fresh match or Training Range starts.

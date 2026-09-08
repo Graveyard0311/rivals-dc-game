@@ -153,3 +153,10 @@ Keyboard and mouse remain active while a controller is connected.
 
 - **Juggernaut** — Unstoppable Charge converts Momentum into a longer charge, impact damage, knockback, and brief damage mitigation.
 - **Gorr** — God Hunter marks a high-health enemy in range; while the mark is active, Gorr gains pursuit speed and bonus melee damage against that target.
+
+
+## Destructible cover
+
+Each arena now includes six predefined breakable cover pieces. Damage removes their HP; once destroyed, the mesh and collision volume are removed to open the lane. Projectile, hitscan/beam, melee, and Juggernaut charge interactions can destroy cover.
+
+In private matches, the host owns destructible HP/alive state. Non-host world damage is routed to the host and the regular match snapshot replicates destruction state to all clients.
