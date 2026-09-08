@@ -93,6 +93,7 @@ Expected behavior:
 8. Confirm match victory triggers correctly in all four modes.
 9. Test all three arenas for collision and route accessibility.
 10. Test Easy, Normal, Hard, and Expert bot difficulty.
+11. Hold **Tab** during a match and confirm both teams show hero/role plus K/D, with human K/D synchronized in private matches.
 
 ## Controls
 
@@ -106,6 +107,7 @@ Default controls:
 - F — team-up ability when available
 - Q — ultimate
 - Space — jump
+- Tab — hold scoreboard
 
 Movement/jump/ability/ultimate keyboard bindings can be remapped in Settings.
 
