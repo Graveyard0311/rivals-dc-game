@@ -166,7 +166,9 @@ try {
         position: { x: 2, y: 0, z: 3 },
         rotationY: 0.4,
         hp: 300,
-        alive: true
+        alive: true,
+        kills: 2,
+        deaths: 1
       }]
     }
   });
@@ -180,10 +182,13 @@ try {
   assert.equal(sharedState.state.convergenceRedCapture, 64);
   assert.equal(sharedState.state.convergenceEscortTeam, 'blue');
   assert.equal(sharedState.state.bots.length, 1);
+  assert.equal(sharedState.state.bots[0].kills, 2);
+  assert.equal(sharedState.state.bots[0].deaths, 1);
 
   const damageOnB = nextMessage(b, m => m.type === 'combat-event' && m.event?.kind === 'damage');
   const deathAuthorityB = nextMessage(b, m => m.type === 'player-authority' && m.id === helloB.playerId && m.alive === false);
   const teamKillOnAFromAuthority = nextMessage(a, m => m.type === 'combat-event' && m.event?.kind === 'team-kill' && m.event?.victimId === helloB.playerId);
+  const statsAfterKillA = nextMessage(a, m => m.type === 'player-stats' && Array.isArray(m.stats) && m.stats.some(s => s.deaths > 0));
   send(a, 'combat-event', {
     event: {
       kind: 'damage',
@@ -214,6 +219,13 @@ try {
   assert.equal(deathAuthority.hp, 0);
   assert.equal(deathAuthority.alive, false);
   assert.equal(authoritativeKill.event.team, 'blue');
+  const statsAfterKill = await statsAfterKillA;
+  const alphaStats = statsAfterKill.stats.find(s => s.id === helloA.playerId);
+  const bravoStats = statsAfterKill.stats.find(s => s.id === helloB.playerId);
+  assert.equal(alphaStats.kills, 1);
+  assert.equal(alphaStats.deaths, 0);
+  assert.equal(bravoStats.kills, 0);
+  assert.equal(bravoStats.deaths, 1);
 
   const effectOnB = nextMessage(b, m => m.type === 'combat-event' && m.event?.kind === 'ability-effect');
   send(a, 'combat-event', {
