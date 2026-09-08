@@ -147,6 +147,57 @@ try {
   assert.equal(authorityDamage.hp, 297);
   assert.equal(authorityDamage.alive, true);
 
+  const healEventOnB = nextMessage(b, m => m.type === 'combat-event' && m.event?.kind === 'ability-effect' && m.event.effect === 'heal');
+  const healAuthorityB = nextMessage(b, m => m.type === 'player-authority' && m.id === helloB.playerId && m.hp === 347);
+  send(a, 'combat-event', {
+    event: {
+      kind: 'ability-effect',
+      targetId: helloB.playerId,
+      effect: 'heal',
+      duration: 0,
+      amount: 50,
+      sourceName: 'Support',
+      sourceTeam: 'red'
+    }
+  });
+  await healEventOnB;
+  const healAuthority = await healAuthorityB;
+  assert.equal(healAuthority.hp, 347);
+
+  const shieldEventOnB = nextMessage(b, m => m.type === 'combat-event' && m.event?.kind === 'ability-effect' && m.event.effect === 'shield');
+  send(a, 'combat-event', {
+    event: {
+      kind: 'ability-effect',
+      targetId: helloB.playerId,
+      effect: 'shield',
+      duration: 180,
+      amount: 0,
+      sourceName: 'Support',
+      sourceTeam: 'red'
+    }
+  });
+  await shieldEventOnB;
+
+  const shieldedDamageOnB = nextMessage(b, m => m.type === 'combat-event' && m.event?.kind === 'damage' && m.event.amount < 100);
+  const shieldedAuthorityB = nextMessage(b, m => m.type === 'player-authority' && m.id === helloB.playerId && m.hp < 347);
+  send(a, 'combat-event', {
+    event: {
+      kind: 'damage',
+      targetId: helloB.playerId,
+      amount: 100,
+      source: 'Heat Vision',
+      sourceName: 'Superman',
+      sourceTeam: 'blue',
+      sourceId: helloA.playerId
+    }
+  });
+  const shieldedDamage = await shieldedDamageOnB;
+  const shieldedAuthority = await shieldedAuthorityB;
+  assert.ok(Math.abs(shieldedDamage.event.amount - 42) < 0.01);
+  assert.ok(Math.abs(shieldedAuthority.hp - 305) < 0.01);
+
+  await new Promise(resolve => setTimeout(resolve, 220));
+
   const matchStateOnB = nextMessage(b, m => m.type === 'match-state');
   send(a, 'match-state', {
     state: {

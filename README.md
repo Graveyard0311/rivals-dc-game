@@ -50,7 +50,7 @@ npm run server
 
 The browser client defaults to `ws://localhost:8787`. For a hosted server, set `VITE_WS_URL` before building the browser client.
 
-Current private networking supports lobby creation/joining, team assignment, host migration, remote human rendering, player-state relays, host-owned bot/objective state, synchronized current ability effects, validated human combat relays, and server-authoritative connected-human HP/death/respawn state.
+Current private networking supports lobby creation/joining, team assignment, host migration, remote human rendering, player-state relays, host-owned bot/objective state, synchronized current ability effects, validated human combat relays, and server-authoritative connected-human HP/death/respawn state, plus server-authoritative network healing and shield mitigation.
 
 ## Direction
 
