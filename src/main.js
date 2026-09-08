@@ -588,7 +588,8 @@ function spawnPosition(team, index = 0) {
 }
 
 function resetFighter(f, index = 0) {
-  f.position.copy(spawnPosition(f.userData.team, index));
+  if (trainingMode && f.userData.trainingSpawn) f.position.copy(f.userData.trainingSpawn);
+  else f.position.copy(spawnPosition(f.userData.team, index));
   f.userData.hp = f.userData.maxHp;
   f.userData.alive = true;
   f.visible = true;
@@ -798,6 +799,105 @@ function lowestAlly(f) {
 
 function teamFor(team) {
   return fighters.filter(f => f.userData.team === team && f.userData.alive);
+}
+
+function clearExistingFighters() {
+  for (const f of fighters) scene.remove(f);
+  fighters.length = 0;
+  remoteFighters.clear();
+}
+
+function makeTrainingTarget(heroId, position, { moving = false, hostile = false } = {}) {
+  const target = makeFighter(getHero(heroId), 'red', false, false, null);
+  target.userData.trainingDummy = !hostile;
+  target.userData.trainingHostile = hostile;
+  target.userData.trainingMoving = moving;
+  target.userData.trainingSpawn = position.clone();
+  target.userData.trainingPhase = Math.random() * Math.PI * 2;
+  target.userData.maxHp = hostile ? 650 : 1200;
+  target.userData.hp = target.userData.maxHp;
+  target.position.copy(position);
+  fighters.push(target);
+  return target;
+}
+
+function resetTrainingTargets() {
+  for (const f of fighters.filter(x => x.userData.trainingDummy || x.userData.trainingHostile)) {
+    f.userData.hp = f.userData.maxHp;
+    f.userData.alive = true;
+    f.visible = true;
+    f.userData.respawnAt = 0;
+    if (f.userData.trainingSpawn) f.position.copy(f.userData.trainingSpawn);
+  }
+}
+
+function switchTrainingHero(heroId) {
+  if (!trainingMode || !player) return;
+  selectedHero = getHero(heroId);
+  trainingHeroSelect.value = selectedHero.id;
+  player.userData.hero = selectedHero;
+  player.userData.maxHp = selectedHero.hp;
+  player.userData.hp = selectedHero.hp;
+  player.userData.body.material.color.setHex(selectedHero.color);
+  player.userData.shoulders.material.color.setHex(selectedHero.color);
+  player.userData.head.material.color.set(new THREE.Color(selectedHero.color).offsetHSL(0, 0, 0.12));
+  player.userData.accent.material.color.setHex(0xa7ddff);
+  heroResource = 0;
+  ultimateCharge = trainingInfiniteUlt ? 100 : 0;
+  abilityReadyAt = 0;
+  secondaryReadyAt = 0;
+  teamUpReadyAt = 0;
+  flightUntil = 0;
+  temporalHistory = [];
+  applyHudHero();
+  showBanner(`${selectedHero.name.toUpperCase()} READY`, 700);
+}
+
+function startTrainingRange() {
+  if (joinedLobby) return setNetworkStatus('Leave the private lobby before entering Training Range', true);
+  trainingMode = true;
+  matchStarted = true;
+  matchOver = false;
+  selectedMode = 'training';
+  clearExistingFighters();
+
+  document.querySelector('#heroSelect').classList.add('hidden');
+  document.querySelector('#hud').classList.remove('hidden');
+  document.querySelector('#trainingPanel').classList.remove('hidden');
+  document.querySelector('#scoreboard').classList.add('hidden');
+
+  objective.visible = false;
+  objectiveRing.visible = false;
+  payload.visible = false;
+  objectiveState = 'TRAINING RANGE';
+  document.querySelector('#objectiveState').textContent = objectiveState;
+  document.querySelector('#blueScore').textContent = 'DAMAGE LAB';
+  document.querySelector('#redScore').textContent = 'NO SCORE LIMIT';
+
+  playerKills = 0;
+  playerDeaths = 0;
+  ultimateCharge = 0;
+  heroResource = 0;
+  lastResourcePosition.set(0, 0, 0);
+  flightUntil = 0;
+  temporalHistory = [];
+  lastTemporalSampleAt = 0;
+
+  player = makeFighter(selectedHero, 'blue', true, false, null);
+  fighters.push(player);
+  player.userData.trainingSpawn = new THREE.Vector3(0, 0, 24);
+  resetFighter(player, 0);
+
+  makeTrainingTarget('juggernaut', new THREE.Vector3(-12, 0, -2));
+  makeTrainingTarget('superman', new THREE.Vector3(0, 0, -10), { moving: true });
+  makeTrainingTarget('doctor-doom', new THREE.Vector3(12, 0, -2));
+  makeTrainingTarget('flash', new THREE.Vector3(-6, 0, -20), { moving: true });
+  makeTrainingTarget('batman', new THREE.Vector3(9, 0, -22), { hostile: true });
+
+  refreshTeamUp();
+  applyHudHero();
+  trainingHeroSelect.value = selectedHero.id;
+  renderer.domElement.requestPointerLock();
 }
 
 function startMatch(players = networkPlayers) {
