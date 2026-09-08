@@ -214,7 +214,9 @@ wss.on('connection', ws => {
         position: bot.position,
         rotationY: Number(bot.rotationY || 0),
         hp: Math.max(0, Number(bot.hp || 0)),
-        alive: Boolean(bot.alive)
+        alive: Boolean(bot.alive),
+        kills: Math.max(0, Math.floor(Number(bot.kills || 0))),
+        deaths: Math.max(0, Math.floor(Number(bot.deaths || 0)))
       })) : [];
       broadcast(lobby, {
         type: 'match-state',
