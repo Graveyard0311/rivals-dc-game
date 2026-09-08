@@ -98,3 +98,9 @@
 ## Spawn-room flow
 - Server-authoritative 2.5s spawn protection ✅
 - HUD protection countdown ✅
+
+
+## Private lobby UX
+- Per-player ready states ✅
+- Host start blocked until all non-host players are ready ✅
+- Ready count/waiting-player status ✅
