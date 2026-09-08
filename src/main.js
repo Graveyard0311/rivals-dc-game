@@ -1455,6 +1455,23 @@ function useSecondary() {
   const kind = selectedHero.secondaryKind || 'heavyBeam';
   const enemies = living(opposingTeam(player.userData.team));
 
+  if (selectedHero.id === 'professor-x') {
+    const ally = living(player.userData.team)
+      .filter(f => f !== player)
+      .sort((a, b) => player.position.distanceTo(a.position) - player.position.distanceTo(b.position))[0];
+    if (!ally || player.position.distanceTo(ally.position) > 18) {
+      secondaryReadyAt = now;
+      showBanner('NO ALLY IN RANGE', 550);
+      return;
+    }
+    applyEffect(ally, 'haste', { duration: 4200, actor: player });
+    applyEffect(ally, 'shield', { duration: 1800, actor: player });
+    pulseEffect(ally.position, selectedHero.color, 4.5, 0.45);
+    showBanner('MENTAL COMMAND', 650);
+    tone(210, 0.12, 0.025, 'sine');
+    return;
+  }
+
   if (kind === 'phase') {
     if (selectedHero.resourceKind === 'speedForce' && heroResource < 25) {
       secondaryReadyAt = now;
@@ -1557,6 +1574,30 @@ function usePlayerAbility() {
   if (!player?.userData.alive) return;
   const now = performance.now();
   if (now < abilityReadyAt) return;
+
+  if (selectedHero.id === 'batman') {
+    const forward = playerForward();
+    const grapple = forward.clone().multiplyScalar(8.5);
+    moveWithCollision(player, grapple);
+    player.position.y = Math.min(8, player.position.y + 3.8);
+    verticalVelocity = 2.8;
+    grounded = false;
+    abilityReadyAt = now + selectedHero.abilityCooldown * 1000;
+    pulseEffect(player.position, selectedHero.color, 4.2, 0.35);
+    showBanner('GRAPNEL LAUNCH', 650);
+    return;
+  }
+
+  if (selectedHero.id === 'superman') {
+    flightUntil = now + 4500;
+    player.position.y = Math.max(player.position.y, 2.8);
+    verticalVelocity = 0;
+    grounded = false;
+    abilityReadyAt = now + selectedHero.abilityCooldown * 1000;
+    pulseEffect(player.position, selectedHero.color, 5.5, 0.5);
+    showBanner('SOLAR FLIGHT', 700);
+    return;
+  }
 
   if (selectedHero.id === 'kang') {
     const rewind = [...temporalHistory].reverse().find(sample => now - sample.t >= 1400);
@@ -2021,18 +2062,24 @@ function updatePlayer(dt, now) {
   if (selectedHero.resourceKind === 'momentum') speedBoost *= 1 + heroResource * 0.0025;
   if (selectedHero.resourceKind === 'speedForce') speedBoost *= 1 + heroResource * 0.0038;
   if (selectedHero.resourceKind === 'powerCosmic' && now < flightUntil) speedBoost *= 1.35;
+  if (selectedHero.id === 'superman' && now < flightUntil) speedBoost *= 1.28;
+  if (selectedHero.id === 'batman' && !grounded && keys[settings.keybinds.jump]) speedBoost *= 1.12;
   if (player.userData.hasteUntil > now) speedBoost *= 1.32;
   if (player.userData.slowedUntil > now) speedBoost *= 0.58;
   if (player.userData.rootedUntil <= now) moveWithCollision(player, move.multiplyScalar(selectedHero.speed * speedBoost * dt));
 
-  if (now < flightUntil && selectedHero.id === 'silver-surfer') {
+  if (now < flightUntil && (selectedHero.id === 'silver-surfer' || selectedHero.id === 'superman')) {
     grounded = false;
     verticalVelocity = 0;
-    if (keys[settings.keybinds.jump]) player.position.y = Math.min(9, player.position.y + 5 * dt);
+    const climbRate = selectedHero.id === 'superman' ? 6.5 : 5;
+    const ceiling = selectedHero.id === 'superman' ? 11 : 9;
+    if (keys[settings.keybinds.jump]) player.position.y = Math.min(ceiling, player.position.y + climbRate * dt);
     player.position.y = Math.max(2.2, player.position.y);
   } else {
     if (keys[settings.keybinds.jump] && grounded) { verticalVelocity = 8; grounded = false; }
-    verticalVelocity -= 20 * dt;
+    const gravity = selectedHero.id === 'batman' && !grounded && keys[settings.keybinds.jump] ? 6.5 : 20;
+    verticalVelocity -= gravity * dt;
+    if (selectedHero.id === 'batman' && !grounded && keys[settings.keybinds.jump]) verticalVelocity = Math.max(verticalVelocity, -2.2);
     player.position.y += verticalVelocity * dt;
     if (player.position.y <= 0) {
       player.position.y = 0;
