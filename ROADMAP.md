@@ -79,3 +79,10 @@
 
 ## Core combat additions
 - Universal quick melee ✅ keyboard + controller + destructible interaction
+
+
+## Spectating
+- Respawn teammate follow camera ✅
+- Keyboard/controller teammate cycling ✅
+- Collision-aware spectator camera ✅
+- Free camera spectator — future
