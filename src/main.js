@@ -47,6 +47,8 @@ let lastShot = 0;
 let abilityReadyAt = 0;
 let secondaryReadyAt = 0;
 let ultimateCharge = 0;
+let heroResource = 0;
+let lastResourcePosition = new THREE.Vector3();
 let teamUpReadyAt = 0;
 let activeTeamUp = null;
 let audioCtx = null;
@@ -125,6 +127,7 @@ app.innerHTML = `
       <div class="hp"><span id="hp"></span> / <span id="maxHp"></span></div>
       <div class="stats">K <span id="kills">0</span> · D <span id="deaths">0</span></div>
     </div>
+    <div id="heroResource" class="hero-resource hidden"><div class="hero-resource-label"><span id="heroResourceLabel"></span><span id="heroResourceValue">0%</span></div><div class="hero-resource-track"><div id="heroResourceFill"></div></div></div>
     <div class="abilities">
       <div class="ability"><div class="key">LMB</div><div id="primaryLabel" class="label"></div></div>
       <div class="ability"><div class="key">RMB</div><div id="secondaryLabel" class="label"></div><div id="secondaryCd" class="charge">READY</div></div>
@@ -775,6 +778,8 @@ function startMatch(players = networkPlayers) {
   playerKills = 0;
   playerDeaths = 0;
   ultimateCharge = 0;
+  heroResource = 0;
+  lastResourcePosition.set(0, 0, 0);
   document.querySelector('#heroSelect').classList.add('hidden');
   document.querySelector('#hud').classList.remove('hidden');
 
@@ -823,6 +828,9 @@ function applyHudHero() {
   document.querySelector('#secondaryLabel').textContent = h.secondary || 'Secondary';
   document.querySelector('#abilityLabel').textContent = h.ability;
   document.querySelector('#ultLabel').textContent = h.ultimate;
+  const resource = document.querySelector('#heroResource');
+  resource.classList.toggle('hidden', !h.resourceKind);
+  document.querySelector('#heroResourceLabel').textContent = h.resourceLabel || '';
 }
 
 const networkStatus = document.querySelector('#networkStatus');
@@ -1143,6 +1151,18 @@ function playerForward() {
   return new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
 }
 
+function playerDamageAmount(base) {
+  if (selectedHero.resourceKind === 'hatred') return base * (1 + heroResource * 0.0045);
+  if (selectedHero.resourceKind === 'momentum') return base * (1 + heroResource * 0.003);
+  if (selectedHero.resourceKind === 'speedForce') return base * (heroResource >= 60 ? 1.18 : 1);
+  return base;
+}
+
+function gainHeroResource(amount) {
+  if (!selectedHero.resourceKind) return;
+  heroResource = THREE.MathUtils.clamp(heroResource + amount, 0, 100);
+}
+
 function playerShoot() {
   if (!player?.userData.alive || performance.now() < player.userData.stunnedUntil) return;
   const now = performance.now();
@@ -1169,7 +1189,10 @@ function playerShoot() {
       if (dist < bestScore) { best = target; bestScore = dist; }
     }
     if (best) {
-      damage(best, selectedHero.damage, player);
+      const dealt = playerDamageAmount(selectedHero.damage);
+      damage(best, dealt, player);
+      if (selectedHero.resourceKind === 'hatred') gainHeroResource(10);
+      if (selectedHero.resourceKind === 'speedForce') gainHeroResource(-8);
       ultimateCharge = Math.min(100, ultimateCharge + 5);
       pulseEffect(best.position, selectedHero.color, 1.8, 0.18);
     }
@@ -1179,7 +1202,7 @@ function playerShoot() {
   raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
   if (attackType === 'projectile') {
     const dir = raycaster.ray.direction.clone().normalize();
-    spawnProjectile(player, dir, selectedHero.damage, selectedHero.projectileSpeed || 28);
+    spawnProjectile(player, dir, playerDamageAmount(selectedHero.damage), selectedHero.projectileSpeed || 28);
     return;
   }
 
@@ -1188,7 +1211,8 @@ function playerShoot() {
   if (!hits.length) return;
   const target = fighters.find(f => f.userData.body === hits[0].object);
   if (target && player.position.distanceTo(target.position) <= selectedHero.range + 4) {
-    damage(target, selectedHero.damage, player);
+    damage(target, playerDamageAmount(selectedHero.damage), player);
+    if (selectedHero.resourceKind === 'hatred') gainHeroResource(7);
     ultimateCharge = Math.min(100, ultimateCharge + 4.5);
     pulseEffect(target.position, selectedHero.color, 1.5, 0.22);
   }
@@ -1239,6 +1263,12 @@ function useSecondary() {
   const enemies = living(opposingTeam(player.userData.team));
 
   if (kind === 'phase') {
+    if (selectedHero.resourceKind === 'speedForce' && heroResource < 25) {
+      secondaryReadyAt = now;
+      showBanner('BUILD SPEED FORCE', 600);
+      return;
+    }
+    if (selectedHero.resourceKind === 'speedForce') gainHeroResource(-25);
     player.userData.shieldUntil = now + 1400;
     player.userData.hasteUntil = now + 1800;
     pulseEffect(player.position, selectedHero.color, 4.2, 0.4);
@@ -1249,7 +1279,7 @@ function useSecondary() {
   } else if (kind === 'slowBurst' || kind === 'rootBurst' || kind === 'knockbackBurst') {
     const radius = kind === 'rootBurst' ? 9 : 8;
     for (const enemy of enemies.filter(e => e.position.distanceTo(player.position) < radius)) {
-      damage(enemy, selectedHero.damage * 0.65, player);
+      damage(enemy, playerDamageAmount(selectedHero.damage * 0.65), player);
       if (kind === 'slowBurst') applyEffect(enemy, 'slow', { duration: 2600, actor: player });
       if (kind === 'rootBurst') applyEffect(enemy, 'root', { duration: 1500, actor: player });
       if (kind === 'knockbackBurst') applyEffect(enemy, 'knockback', { amount: 3.8, actor: player });
@@ -1258,14 +1288,14 @@ function useSecondary() {
   } else {
     raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
     if (kind === 'heavyProjectile') {
-      spawnProjectile(player, raycaster.ray.direction.clone().normalize(), selectedHero.damage * 1.8, (selectedHero.projectileSpeed || 28) * 0.82);
+      spawnProjectile(player, raycaster.ray.direction.clone().normalize(), playerDamageAmount(selectedHero.damage * 1.8), (selectedHero.projectileSpeed || 28) * 0.82);
     } else {
       const targets = enemies.map(f => f.userData.body);
       const hits = raycaster.intersectObjects(targets);
       if (hits.length) {
         const target = fighters.find(f => f.userData.body === hits[0].object);
         if (target && player.position.distanceTo(target.position) <= selectedHero.range + 7) {
-          damage(target, selectedHero.damage * 1.65, player);
+          damage(target, playerDamageAmount(selectedHero.damage * 1.65), player);
           pulseEffect(target.position, selectedHero.color, 2.2, 0.3);
         }
       }
@@ -1697,6 +1727,24 @@ function updateObjective(dt) {
   }
 }
 
+function updateHeroResource(dt, now) {
+  if (!player?.userData.alive || !selectedHero.resourceKind) return;
+
+  const movedDistance = player.position.distanceTo(lastResourcePosition);
+  lastResourcePosition.copy(player.position);
+
+  if (selectedHero.resourceKind === 'momentum') {
+    const moving = movedDistance > 0.01;
+    gainHeroResource(moving ? dt * 18 : -dt * 12);
+    if (heroResource >= 65) player.userData.shieldUntil = Math.max(player.userData.shieldUntil, now + 180);
+  } else if (selectedHero.resourceKind === 'speedForce') {
+    const moving = movedDistance > 0.01;
+    gainHeroResource(moving ? dt * 24 : -dt * 9);
+  } else if (selectedHero.resourceKind === 'hatred') {
+    gainHeroResource(-dt * 4.2);
+  }
+}
+
 function updatePlayer(dt, now) {
   if (!player?.userData.alive || matchOver || now < player.userData.stunnedUntil) return;
   const forward = playerForward();
@@ -1709,6 +1757,8 @@ function updatePlayer(dt, now) {
   if (move.lengthSq()) move.normalize();
 
   let speedBoost = player.userData.empoweredUntil > now ? 1.22 : 1;
+  if (selectedHero.resourceKind === 'momentum') speedBoost *= 1 + heroResource * 0.0025;
+  if (selectedHero.resourceKind === 'speedForce') speedBoost *= 1 + heroResource * 0.0038;
   if (player.userData.hasteUntil > now) speedBoost *= 1.32;
   if (player.userData.slowedUntil > now) speedBoost *= 0.58;
   if (player.userData.rootedUntil <= now) moveWithCollision(player, move.multiplyScalar(selectedHero.speed * speedBoost * dt));
@@ -1824,6 +1874,10 @@ function updateHud(now) {
   document.querySelector('#kills').textContent = playerKills;
   document.querySelector('#deaths').textContent = playerDeaths;
   document.querySelector('#ultCharge').textContent = `${Math.floor(ultimateCharge)}%`;
+  if (selectedHero.resourceKind) {
+    document.querySelector('#heroResourceValue').textContent = `${Math.floor(heroResource)}%`;
+    document.querySelector('#heroResourceFill').style.width = `${heroResource}%`;
+  }
   const teamUpLabel = document.querySelector('#teamUpLabel');
   const teamUpCd = document.querySelector('#teamUpCd');
   if (activeTeamUp) {
@@ -1855,6 +1909,7 @@ function animate() {
 
   if (matchStarted) {
     updatePlayer(dt, now);
+    updateHeroResource(dt, now);
     if (joinedLobby && network.connected && player && now - lastNetworkStateAt >= 100) {
       lastNetworkStateAt = now;
       network.sendState({
