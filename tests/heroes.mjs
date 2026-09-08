@@ -8,7 +8,7 @@ const secondaryKinds = new Set(['slowBurst', 'heavyProjectile', 'phase', 'rootBu
 const ultKinds = new Set(['slam', 'empower', 'stun', 'teamHeal']);
 const resourceKinds = new Set(['momentum', 'hatred', 'speedForce', 'arcaneCharge', 'temporalCharge', 'powerCosmic', 'infinityCharge', 'omegaCharge']);
 
-assert.ok(HEROES.length >= 30, 'expected at least 30 playable prototype heroes');
+assert.equal(HEROES.length, 75, 'launch-target roster must contain exactly 75 playable prototype heroes');
 
 const ids = new Set();
 for (const hero of HEROES) {
@@ -56,6 +56,8 @@ assert.equal(getHero('kang').resourceKind, 'temporalCharge');
 assert.equal(getHero('silver-surfer').resourceKind, 'powerCosmic');
 assert.equal(getHero('thanos').resourceKind, 'infinityCharge');
 assert.equal(getHero('darkseid').resourceKind, 'omegaCharge');
+
+for (const id of ["wolverine","jean-grey","magneto","deadpool","invisible-woman","human-torch","shang-chi","daredevil","sentry","doctor-octopus","green-goblin","miles-morales","loki","moon-knight","reverse-flash","red-hood","blue-beetle","swamp-thing","supergirl","doctor-fate","beast-boy","lobo","sinestro","doomsday","brainiac","bane","hawkgirl","spider-man","iron-man","captain-america","thor","hulk","black-panther","scarlet-witch","star-lord","rocket-raccoon","groot","venom","storm","hawkeye","black-widow"]) assert.ok(getHero(id).id === id, `missing expansion hero: ${id}`);
 
 for (const hero of HEROES) assert.equal(getHero(hero.id), hero);
 assert.equal(getHero('__missing__'), HEROES[0]);
