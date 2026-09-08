@@ -104,3 +104,11 @@
 - Per-player ready states ✅
 - Host start blocked until all non-host players are ready ✅
 - Ready count/waiting-player status ✅
+
+
+## Match-end presentation
+- Persistent post-match results screen ✅
+- Winning-team presentation ✅
+- MVP selection from synchronized K/D ✅
+- Full team result tables ✅
+- Explicit return-to-menu flow ✅
