@@ -977,6 +977,29 @@ function applyHudHero() {
 
 const networkStatus = document.querySelector('#networkStatus');
 const deployBtn = document.querySelector('#deployBtn');
+const trainingBtn = document.querySelector('#trainingBtn');
+
+trainingBtn.onclick = startTrainingRange;
+trainingHeroSelect.onchange = e => switchTrainingHero(e.target.value);
+document.querySelector('#resetCooldownsBtn').onclick = () => {
+  abilityReadyAt = 0;
+  secondaryReadyAt = 0;
+  teamUpReadyAt = 0;
+  showBanner('COOLDOWNS RESET', 550);
+};
+document.querySelector('#fillUltimateBtn').onclick = () => {
+  ultimateCharge = 100;
+  showBanner('ULTIMATE READY', 550);
+};
+document.querySelector('#toggleInfiniteUltBtn').onclick = e => {
+  trainingInfiniteUlt = !trainingInfiniteUlt;
+  e.currentTarget.textContent = `INFINITE ULT: ${trainingInfiniteUlt ? 'ON' : 'OFF'}`;
+  if (trainingInfiniteUlt) ultimateCharge = 100;
+};
+document.querySelector('#resetTargetsBtn').onclick = () => {
+  resetTrainingTargets();
+  showBanner('TARGETS RESET', 550);
+};
 
 function setNetworkStatus(text, error = false) {
   networkStatus.textContent = text;
@@ -1611,7 +1634,7 @@ function activateUltimate(actor, isHuman = false) {
 
 function useUltimate() {
   if (!player?.userData.alive || ultimateCharge < 100) return;
-  ultimateCharge = 0;
+  ultimateCharge = trainingMode && trainingInfiniteUlt ? 100 : 0;
   activateUltimate(player, true);
 }
 
@@ -1673,8 +1696,23 @@ function bestCoverPoint(bot, target) {
   return best;
 }
 
+function updateTrainingTargets(dt, now) {
+  for (const target of fighters) {
+    if (!target.userData.trainingDummy || !target.userData.alive || !target.userData.trainingMoving) continue;
+    const spawn = target.userData.trainingSpawn;
+    const lane = Math.sin(now * 0.0015 + target.userData.trainingPhase) * 5.5;
+    const desired = new THREE.Vector3(spawn.x + lane, spawn.y, spawn.z);
+    const delta = desired.sub(target.position);
+    if (delta.lengthSq() > 0.01) {
+      moveWithCollision(target, delta.normalize().multiplyScalar(Math.min(delta.length(), 3.4 * dt)));
+      target.rotation.y = delta.x >= 0 ? Math.PI / 2 : -Math.PI / 2;
+    }
+  }
+}
+
 function updateBots(dt, now) {
   for (const bot of fighters) {
+    if (bot.userData.trainingDummy) continue;
     if (bot.userData.isPlayer || bot.userData.isRemote || !bot.userData.alive || matchOver || now < bot.userData.stunnedUntil) continue;
     const hero = bot.userData.hero;
     const difficulty = getBotDifficulty(selectedBotDifficulty);
@@ -1738,6 +1776,10 @@ function updateBots(dt, now) {
 function updateRespawns(now) {
   for (const f of fighters) {
     if (f.userData.isRemote || f.userData.alive || now < f.userData.respawnAt || matchOver) continue;
+    if (trainingMode && (f.userData.trainingDummy || f.userData.trainingHostile)) {
+      resetFighter(f, 0);
+      continue;
+    }
     if (joinedLobby && f === player) continue;
     const sameTeam = fighters.filter(x => x.userData.team === f.userData.team);
     resetFighter(f, sameTeam.indexOf(f));
@@ -2176,7 +2218,12 @@ function animate() {
       });
     }
     const isNetworkHost = !joinedLobby || network.playerId === lobbyHostId;
-    if (isNetworkHost) {
+    if (trainingMode) {
+      updateTrainingTargets(dt, now);
+      updateBots(dt, now);
+      document.querySelector('#objectiveState').textContent = 'TRAINING RANGE · DAMAGE / MOBILITY LAB';
+      if (trainingInfiniteUlt) ultimateCharge = 100;
+    } else if (isNetworkHost) {
       updateBots(dt, now);
       updateObjective(dt);
       if (joinedLobby && network.connected && now - lastMatchStateAt >= 100) {
