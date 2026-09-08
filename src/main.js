@@ -1279,7 +1279,7 @@ function useSecondary() {
   } else if (kind === 'slowBurst' || kind === 'rootBurst' || kind === 'knockbackBurst') {
     const radius = kind === 'rootBurst' ? 9 : 8;
     for (const enemy of enemies.filter(e => e.position.distanceTo(player.position) < radius)) {
-      damage(enemy, selectedHero.damage * 0.65, player);
+      damage(enemy, playerDamageAmount(selectedHero.damage * 0.65), player);
       if (kind === 'slowBurst') applyEffect(enemy, 'slow', { duration: 2600, actor: player });
       if (kind === 'rootBurst') applyEffect(enemy, 'root', { duration: 1500, actor: player });
       if (kind === 'knockbackBurst') applyEffect(enemy, 'knockback', { amount: 3.8, actor: player });
@@ -1288,14 +1288,14 @@ function useSecondary() {
   } else {
     raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
     if (kind === 'heavyProjectile') {
-      spawnProjectile(player, raycaster.ray.direction.clone().normalize(), selectedHero.damage * 1.8, (selectedHero.projectileSpeed || 28) * 0.82);
+      spawnProjectile(player, raycaster.ray.direction.clone().normalize(), playerDamageAmount(selectedHero.damage * 1.8), (selectedHero.projectileSpeed || 28) * 0.82);
     } else {
       const targets = enemies.map(f => f.userData.body);
       const hits = raycaster.intersectObjects(targets);
       if (hits.length) {
         const target = fighters.find(f => f.userData.body === hits[0].object);
         if (target && player.position.distanceTo(target.position) <= selectedHero.range + 7) {
-          damage(target, selectedHero.damage * 1.65, player);
+          damage(target, playerDamageAmount(selectedHero.damage * 1.65), player);
           pulseEffect(target.position, selectedHero.color, 2.2, 0.3);
         }
       }
