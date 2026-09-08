@@ -229,3 +229,11 @@ Private-match clients open the same results flow when the host-authoritative mat
 - **Reality Crush** spends charge to damage, slow, and knock back nearby enemies while smashing breakable cover.
 - **Space Stone** spends charge for a forward reposition with brief protection and impact damage; without enough charge, Shift falls back to Titan Charge.
 - **Infinity Surge** consumes stored Gauntlet Charge to scale its radius, damage, stun, knockback, and environmental destruction.
+
+
+## Darkseid bespoke mechanics
+
+- **Omega Charge** builds from Omega Beam hits and damage taken, then slowly decays.
+- **Boom Tube** spends charge to reposition Darkseid forward while granting brief protection.
+- **Omega Sanction** spends charge to damage, root, and slow a target in front of Darkseid.
+- **Anti-Life Equation** consumes remaining Omega Charge to scale its crowd-control radius, damage, and stun duration.

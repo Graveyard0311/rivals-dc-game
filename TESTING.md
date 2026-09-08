@@ -47,6 +47,10 @@ Offline matches run as 6v6 with bots filling every non-human slot.
 15. Use RMB above 25 charge and confirm Reality Crush damages, slows, knocks back, and damages breakable cover.
 16. Use Shift above 35 charge and confirm Space Stone repositions Thanos, grants brief protection, and damages nearby enemies; below 35 charge, confirm Shift falls back to Titan Charge.
 17. Fill ultimate at low and high Gauntlet Charge and confirm Infinity Surge scales up with stored charge before consuming it.
+18. As Darkseid, build Omega Charge through Omega Beam hits and incoming damage.
+19. Use RMB above 20 charge and confirm Boom Tube repositions Darkseid and grants brief protection.
+20. Use Shift above 35 charge and confirm Omega Sanction damages, roots, and slows a target in front of Darkseid.
+21. Fill ultimate at different Omega Charge levels and confirm Anti-Life Equation scales its radius/control before consuming charge.
 
 ## Two-human private match test
 

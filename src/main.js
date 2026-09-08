@@ -977,6 +977,7 @@ function damage(target, amount, attacker, networkApplied = false) {
     cameraShake = Math.min(1.4, cameraShake + dealt / 180);
     if (!joinedLobby && selectedHero.resourceKind === 'arcaneCharge') gainHeroResource(dealt * 0.22);
     if (!joinedLobby && selectedHero.resourceKind === 'infinityCharge') gainHeroResource(dealt * 0.12);
+    if (!joinedLobby && selectedHero.resourceKind === 'omegaCharge') gainHeroResource(dealt * 0.1);
   }
   target.userData.body.material.emissive = new THREE.Color(0xffffff);
   setTimeout(() => target.userData?.body?.material?.emissive?.set(0x000000), 65);
@@ -1477,6 +1478,7 @@ network.on('player-authority', msg => {
     const lost = previousHp - target.userData.hp;
     if (selectedHero.resourceKind === 'arcaneCharge') gainHeroResource(lost * 0.22);
     if (selectedHero.resourceKind === 'infinityCharge') gainHeroResource(lost * 0.12);
+    if (selectedHero.resourceKind === 'omegaCharge') gainHeroResource(lost * 0.1);
   }
   target.userData.alive = Boolean(msg.alive);
   target.visible = target.userData.alive;
@@ -1717,6 +1719,7 @@ function playerDamageAmount(base, target = null) {
   if (selectedHero.resourceKind === 'momentum') return base * (1 + heroResource * 0.003);
   if (selectedHero.resourceKind === 'speedForce') return base * (heroResource >= 60 ? 1.18 : 1);
   if (selectedHero.resourceKind === 'powerCosmic') return base * (1 + heroResource * 0.0015);
+  if (selectedHero.resourceKind === 'omegaCharge') return base * (1 + heroResource * 0.0018);
   return base;
 }
 
@@ -1856,6 +1859,7 @@ function playerShoot() {
   if (target && player.position.distanceTo(target.position) <= maxRange) {
     damage(target, playerDamageAmount(selectedHero.damage, target), player);
     if (selectedHero.resourceKind === 'hatred') gainHeroResource(7);
+    if (selectedHero.resourceKind === 'omegaCharge') gainHeroResource(9);
     ultimateCharge = Math.min(100, ultimateCharge + 4.5);
     pulseEffect(target.position, selectedHero.color, 1.5, 0.22);
   }
@@ -1904,6 +1908,23 @@ function useSecondary() {
   secondaryReadyAt = now + (selectedHero.secondaryCooldown || 6) * 1000;
   const kind = selectedHero.secondaryKind || 'heavyBeam';
   const enemies = living(opposingTeam(player.userData.team));
+
+  if (selectedHero.id === 'darkseid' && heroResource >= 20) {
+    const forward = playerForward();
+    const start = player.position.clone();
+    const destination = player.position.clone().add(forward.multiplyScalar(10));
+    if (!overlapsWorld(destination, 0.72)) {
+      player.position.copy(destination);
+      gainHeroResource(-20);
+      player.userData.shieldUntil = Math.max(player.userData.shieldUntil, now + 1400);
+      pulseEffect(start, 0xb95cff, 4.5, 0.45);
+      pulseEffect(player.position, 0xb95cff, 4.5, 0.45);
+      secondaryReadyAt = now + (selectedHero.secondaryCooldown || 7) * 1000;
+      showBanner('BOOM TUBE', 650);
+      tone(78, 0.14, 0.035, 'sawtooth');
+      return;
+    }
+  }
 
   if (selectedHero.id === 'thanos' && heroResource >= 25) {
     gainHeroResource(-25);
@@ -2051,6 +2072,42 @@ function usePlayerAbility() {
   if (!player?.userData.alive) return;
   const now = performance.now();
   if (now < abilityReadyAt) return;
+
+  if (selectedHero.id === 'darkseid') {
+    if (heroResource < 35) {
+      showBanner('BUILD OMEGA CHARGE', 650);
+      return;
+    }
+
+    const forward = playerForward();
+    const candidates = living(opposingTeam(player.userData.team))
+      .map(enemy => {
+        const toEnemy = enemy.position.clone().sub(player.position);
+        const distance = toEnemy.length();
+        toEnemy.y = 0;
+        const facing = toEnemy.lengthSq() ? forward.dot(toEnemy.normalize()) : 1;
+        return { enemy, distance, facing };
+      })
+      .filter(x => x.distance <= 24 && x.facing > 0.2)
+      .sort((a, b) => a.distance - b.distance);
+
+    const target = candidates[0]?.enemy;
+    if (!target) {
+      showBanner('NO TARGET FOR OMEGA SANCTION', 650);
+      return;
+    }
+
+    const charge = heroResource;
+    gainHeroResource(-35);
+    damage(target, playerDamageAmount(92 + charge * 0.28, target), player);
+    applyEffect(target, 'root', { duration: 1200 + charge * 4, actor: player });
+    applyEffect(target, 'slow', { duration: 2600, actor: player });
+    pulseEffect(target.position, 0xff3a63, 5.5, 0.65);
+    abilityReadyAt = now + selectedHero.abilityCooldown * 1000;
+    showBanner('OMEGA SANCTION', 800);
+    tone(118, 0.18, 0.04, 'square');
+    return;
+  }
 
   if (selectedHero.id === 'thanos') {
     if (heroResource >= 35) {
@@ -2216,6 +2273,25 @@ function activateUltimate(actor, isHuman = false) {
 function useUltimate() {
   if (!player?.userData.alive || ultimateCharge < 100) return;
   ultimateCharge = trainingMode && trainingInfiniteUlt ? 100 : 0;
+
+  if (selectedHero.id === 'darkseid') {
+    const charge = heroResource;
+    const radius = 15 + charge * 0.035;
+    const damageAmount = 78 + charge * 0.42;
+    const stunDuration = 1500 + charge * 5;
+    for (const enemy of living(opposingTeam(player.userData.team)).filter(e => e.position.distanceTo(player.position) < radius)) {
+      damage(enemy, damageAmount, player);
+      applyEffect(enemy, 'stun', { duration: stunDuration, actor: player });
+      applyEffect(enemy, 'slow', { duration: 3600, actor: player });
+    }
+    heroResource = 0;
+    player.userData.shieldUntil = Math.max(player.userData.shieldUntil, performance.now() + 2200);
+    pulseEffect(player.position, 0x8c67ff, radius, 0.9);
+    cameraShake = Math.max(cameraShake, 0.9);
+    showBanner('ANTI-LIFE EQUATION', 1200);
+    tone(54, 0.32, 0.05, 'sawtooth');
+    return;
+  }
 
   if (selectedHero.id === 'thanos') {
     const charge = heroResource;
@@ -2601,6 +2677,8 @@ function updateHeroResource(dt, now) {
     gainHeroResource(moving ? dt * 16 : -dt * 3);
   } else if (selectedHero.resourceKind === 'infinityCharge') {
     gainHeroResource(-dt * 1.2);
+  } else if (selectedHero.resourceKind === 'omegaCharge') {
+    gainHeroResource(-dt * 1.4);
   }
 }
 

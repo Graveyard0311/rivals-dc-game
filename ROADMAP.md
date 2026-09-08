@@ -43,8 +43,8 @@
 - Networked abilities ✅ current heal/shield/slow/root/stun/knockback archetypes; heal + shield mitigation are server-authoritative
 
 ## Milestone E — Content expansion
-- Full priority roster ✅ 33-character prototype roster / expanding
-- Individual bespoke hero kits ✅ / expanding — Juggernaut Momentum, Gorr Hatred, Flash Speed Force, Doom Arcane Charge, Kang Temporal Rewind, Silver Surfer Cosmic Flight, Batman Grapnel/Glide, Superman Flight, Professor X Mental Command, Juggernaut Unstoppable Charge, Gorr God Hunter, Thanos Gauntlet Charge/Reality Crush/Space Stone/Infinity Surge
+- Full priority roster ✅ 34-character prototype roster / expanding
+- Individual bespoke hero kits ✅ / expanding — Juggernaut Momentum, Gorr Hatred, Flash Speed Force, Doom Arcane Charge, Kang Temporal Rewind, Silver Surfer Cosmic Flight, Batman Grapnel/Glide, Superman Flight, Professor X Mental Command, Juggernaut Unstoppable Charge, Gorr God Hunter, Thanos Gauntlet Charge/Reality Crush/Space Stone/Infinity Surge, Darkseid Omega Charge/Boom Tube/Omega Sanction/Anti-Life
 - Team Deathmatch ✅
 - Team-up abilities ✅ reusable pair registry + five prototype team-ups
 - Additional arenas ✅ Nexus Arena / Gotham Industrial / Themyscira Ruins
