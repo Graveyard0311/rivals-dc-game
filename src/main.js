@@ -715,14 +715,7 @@ function damage(target, amount, attacker, networkApplied = false) {
     if (target === player) {
       playerDeaths++;
       respawnAt = target.userData.respawnAt;
-      if (joinedLobby && network.connected && networkApplied) {
-        network.sendCombatEvent({
-          kind: 'death-confirmed',
-          killerId: target.userData.lastNetworkAttackerId || attacker?.userData.networkId || '',
-          killerTeam: target.userData.lastNetworkSourceTeam || attacker?.userData.team || null,
-          sourceName: target.userData.lastNetworkSourceName || attacker?.userData.hero?.name || 'Opponent'
-        });
-      }
+
     }
   }
 }
@@ -881,9 +874,11 @@ network.on('state', msg => {
   if (!remote || !msg.position) return;
   remote.position.lerp(new THREE.Vector3(msg.position.x, msg.position.y, msg.position.z), 0.62);
   remote.rotation.y = Number(msg.rotationY || 0);
-  remote.userData.hp = THREE.MathUtils.clamp(Number(msg.hp || 0), 0, remote.userData.maxHp);
-  remote.userData.alive = Boolean(msg.alive);
-  remote.visible = remote.userData.alive;
+  if (Number.isFinite(Number(msg.hp))) remote.userData.hp = THREE.MathUtils.clamp(Number(msg.hp), 0, remote.userData.maxHp);
+  if (typeof msg.alive === 'boolean') {
+    remote.userData.alive = msg.alive;
+    remote.visible = remote.userData.alive;
+  }
 });
 
 network.on('match-state', msg => {
@@ -945,6 +940,24 @@ network.on('match-state', msg => {
   if (matchOver) showBanner(blueScore >= redScore ? 'ALLIANCE VICTORY' : 'LEGION VICTORY', 5000);
 });
 
+network.on('player-authority', msg => {
+  const target = msg.id === network.playerId ? player : remoteFighters.get(msg.id);
+  if (!target) return;
+  if (Number.isFinite(Number(msg.maxHp)) && Number(msg.maxHp) > 0) target.userData.maxHp = Number(msg.maxHp);
+  if (Number.isFinite(Number(msg.hp))) target.userData.hp = THREE.MathUtils.clamp(Number(msg.hp), 0, target.userData.maxHp);
+  target.userData.alive = Boolean(msg.alive);
+  target.visible = target.userData.alive;
+
+  if (target === player) {
+    if (!target.userData.alive) {
+      playerDeaths = Math.max(playerDeaths, playerDeaths + 1);
+      respawnAt = performance.now() + Math.max(0, Number(msg.respawnAt || Date.now()) - Date.now());
+    } else {
+      respawnAt = 0;
+    }
+  }
+});
+
 network.on('combat-event', msg => {
   if (!matchStarted || !msg.event) return;
 
@@ -953,7 +966,7 @@ network.on('combat-event', msg => {
     player.userData.lastNetworkAttackerId = msg.id || null;
     player.userData.lastNetworkSourceTeam = msg.event.sourceTeam || attacker?.userData.team || null;
     player.userData.lastNetworkSourceName = msg.event.sourceName || attacker?.userData.hero?.name || 'Opponent';
-    damage(player, Number(msg.event.amount || 0), attacker, true);
+    cameraShake = Math.max(cameraShake, 0.42);
     return;
   }
 
@@ -1477,6 +1490,7 @@ function updateBots(dt, now) {
 function updateRespawns(now) {
   for (const f of fighters) {
     if (f.userData.isRemote || f.userData.alive || now < f.userData.respawnAt || matchOver) continue;
+    if (joinedLobby && f === player) continue;
     const sameTeam = fighters.filter(x => x.userData.team === f.userData.team);
     resetFighter(f, sameTeam.indexOf(f));
     if (f === player) showBanner('RESPAWNED');
