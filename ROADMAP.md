@@ -38,7 +38,7 @@
 - Join/leave/reconnect behavior ✅ foundation
 - Networked damage ✅ server-owned human HP with validated damage/death/respawn
 - Networked objective state ✅
-- Networked abilities ✅ current heal/shield/slow/root/stun/knockback archetypes
+- Networked abilities ✅ current heal/shield/slow/root/stun/knockback archetypes; heal + shield mitigation are server-authoritative
 
 ## Milestone E — Content expansion
 - Full priority roster ✅ 33-character prototype roster / expanding
