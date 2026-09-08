@@ -53,6 +53,6 @@
 - Browser-hosted test URL ✅ GitHub Pages workflow
 - Downloadable desktop wrapper/build ✅ Electron wrapper + cross-platform packaging workflow
 - Settings and keybinds ✅ persistent local settings + remapping + health-bar visibility
-- Performance optimization
+- Performance optimization ✅ transient projectile/VFX pooling and caps / expanding
 - Animation/model/audio polish
-- Final private-demo QA
+- Final private-demo QA ✅ automated build/network/team-up/bot/arena/hero regression suite / browser playtest remaining
