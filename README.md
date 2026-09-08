@@ -17,6 +17,7 @@ Private, browser-first Marvel/DC hero-shooter demo.
 - Deaths, kill feed, respawns, K/D tracking, and a hold-Tab team scoreboard
 - Ultimate charge and area-damage ultimate
 - Match victory and automatic reset
+- Dedicated Training Range with stationary/moving/hostile targets, live hero switching, cooldown reset, target reset, and infinite-ultimate toggle
 
 ## Controls
 
@@ -49,7 +50,7 @@ npm run server
 
 The browser client defaults to `ws://localhost:8787`. For a hosted server, set `VITE_WS_URL` before building the browser client.
 
-Current private networking supports lobby creation/joining, team assignment, host migration, remote human rendering, player-state relays, host-owned bot/objective state, synchronized current ability effects, and validated human combat relays. Human HP remains owner-applied rather than fully server-authoritative.
+Current private networking supports lobby creation/joining, team assignment, host migration, remote human rendering, player-state relays, host-owned bot/objective state, synchronized current ability effects, validated human combat relays, and server-authoritative connected-human HP/death/respawn state.
 
 ## Direction
 
@@ -115,3 +116,8 @@ In private lobbies, the host synchronizes capture progress, phase transitions, e
 ## Testing
 
 See [TESTING.md](./TESTING.md) for offline testing, two-client private match setup, automated validation coverage, build artifacts, and current alpha limitations.
+
+
+## Training Range
+
+Choose **Enter Training Range** from the hero-select screen for a no-score practice environment. The range includes stationary targets, moving targets, and one hostile target. Training controls support live hero switching, cooldown reset, ultimate fill, infinite ultimate, and target reset so hero kits and resource systems can be exercised quickly without a full match.

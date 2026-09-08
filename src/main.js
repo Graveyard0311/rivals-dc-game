@@ -26,6 +26,8 @@ let selectedBotDifficulty = 'normal';
 let selectedArena = 'nexus';
 let matchStarted = false;
 let matchOver = false;
+let trainingMode = false;
+let trainingInfiniteUlt = false;
 let blueScore = 0;
 let redScore = 0;
 let convoyProgress = 0;
@@ -113,6 +115,7 @@ app.innerHTML = `
         <div id="networkStatus" class="network-status">Offline mode ready</div>
       </div>
       <button id="deployBtn" class="deploy">DEPLOY OFFLINE BATTLE</button>
+      <button id="trainingBtn" class="training-launch">ENTER TRAINING RANGE</button>
     </div>
   </div>
   <div id="hud" class="hud hidden">
@@ -137,6 +140,16 @@ app.innerHTML = `
       <div class="ability"><div class="key">⇧</div><div id="abilityLabel" class="label"></div><div id="abilityCd" class="charge">READY</div></div>
       <div class="ability teamup-ability"><div class="key">F</div><div id="teamUpLabel" class="label">NO TEAM-UP</div><div id="teamUpCd" class="charge">—</div></div>
       <div class="ability"><div class="key">Q</div><div id="ultLabel" class="label"></div><div id="ultCharge" class="charge">0%</div></div>
+    </div>
+    <div id="trainingPanel" class="training-panel hidden">
+      <div class="training-title">TRAINING RANGE</div>
+      <label>Hero
+        <select id="trainingHeroSelect"></select>
+      </label>
+      <button id="resetCooldownsBtn">RESET COOLDOWNS</button>
+      <button id="fillUltimateBtn">FILL ULTIMATE</button>
+      <button id="toggleInfiniteUltBtn">INFINITE ULT: OFF</button>
+      <button id="resetTargetsBtn">RESET TARGETS</button>
     </div>
     <div id="scoreboard" class="scoreboard hidden">
       <div class="scoreboard-card">
@@ -250,6 +263,14 @@ function persistSettings() {
 }
 
 const rosterEl = document.querySelector('#roster');
+const trainingHeroSelect = document.querySelector('#trainingHeroSelect');
+for (const hero of HEROES) {
+  const opt = document.createElement('option');
+  opt.value = hero.id;
+  opt.textContent = `${hero.universe} · ${hero.name}`;
+  trainingHeroSelect.appendChild(opt);
+}
+trainingHeroSelect.value = selectedHero.id;
 for (const hero of HEROES) {
   const b = document.createElement('button');
   b.className = 'hero-option' + (hero.id === selectedHero.id ? ' selected' : '');
@@ -257,6 +278,7 @@ for (const hero of HEROES) {
   b.innerHTML = `<span class="universe">${hero.universe}</span><strong>${hero.name}</strong><small>${hero.role} · ${hero.primary}</small>`;
   b.onclick = () => {
     selectedHero = getHero(hero.id);
+    trainingHeroSelect.value = selectedHero.id;
     network.setHero(selectedHero.id);
     [...rosterEl.children].forEach(x => x.classList.toggle('selected', x.dataset.hero === hero.id));
   };
@@ -566,7 +588,8 @@ function spawnPosition(team, index = 0) {
 }
 
 function resetFighter(f, index = 0) {
-  f.position.copy(spawnPosition(f.userData.team, index));
+  if (trainingMode && f.userData.trainingSpawn) f.position.copy(f.userData.trainingSpawn);
+  else f.position.copy(spawnPosition(f.userData.team, index));
   f.userData.hp = f.userData.maxHp;
   f.userData.alive = true;
   f.visible = true;
@@ -778,6 +801,105 @@ function teamFor(team) {
   return fighters.filter(f => f.userData.team === team && f.userData.alive);
 }
 
+function clearExistingFighters() {
+  for (const f of fighters) scene.remove(f);
+  fighters.length = 0;
+  remoteFighters.clear();
+}
+
+function makeTrainingTarget(heroId, position, { moving = false, hostile = false } = {}) {
+  const target = makeFighter(getHero(heroId), 'red', false, false, null);
+  target.userData.trainingDummy = !hostile;
+  target.userData.trainingHostile = hostile;
+  target.userData.trainingMoving = moving;
+  target.userData.trainingSpawn = position.clone();
+  target.userData.trainingPhase = Math.random() * Math.PI * 2;
+  target.userData.maxHp = hostile ? 650 : 1200;
+  target.userData.hp = target.userData.maxHp;
+  target.position.copy(position);
+  fighters.push(target);
+  return target;
+}
+
+function resetTrainingTargets() {
+  for (const f of fighters.filter(x => x.userData.trainingDummy || x.userData.trainingHostile)) {
+    f.userData.hp = f.userData.maxHp;
+    f.userData.alive = true;
+    f.visible = true;
+    f.userData.respawnAt = 0;
+    if (f.userData.trainingSpawn) f.position.copy(f.userData.trainingSpawn);
+  }
+}
+
+function switchTrainingHero(heroId) {
+  if (!trainingMode || !player) return;
+  selectedHero = getHero(heroId);
+  trainingHeroSelect.value = selectedHero.id;
+  player.userData.hero = selectedHero;
+  player.userData.maxHp = selectedHero.hp;
+  player.userData.hp = selectedHero.hp;
+  player.userData.body.material.color.setHex(selectedHero.color);
+  player.userData.shoulders.material.color.setHex(selectedHero.color);
+  player.userData.head.material.color.set(new THREE.Color(selectedHero.color).offsetHSL(0, 0, 0.12));
+  player.userData.accent.material.color.setHex(0xa7ddff);
+  heroResource = 0;
+  ultimateCharge = trainingInfiniteUlt ? 100 : 0;
+  abilityReadyAt = 0;
+  secondaryReadyAt = 0;
+  teamUpReadyAt = 0;
+  flightUntil = 0;
+  temporalHistory = [];
+  applyHudHero();
+  showBanner(`${selectedHero.name.toUpperCase()} READY`, 700);
+}
+
+function startTrainingRange() {
+  if (joinedLobby) return setNetworkStatus('Leave the private lobby before entering Training Range', true);
+  trainingMode = true;
+  matchStarted = true;
+  matchOver = false;
+  selectedMode = 'training';
+  clearExistingFighters();
+
+  document.querySelector('#heroSelect').classList.add('hidden');
+  document.querySelector('#hud').classList.remove('hidden');
+  document.querySelector('#trainingPanel').classList.remove('hidden');
+  document.querySelector('#scoreboard').classList.add('hidden');
+
+  objective.visible = false;
+  objectiveRing.visible = false;
+  payload.visible = false;
+  objectiveState = 'TRAINING RANGE';
+  document.querySelector('#objectiveState').textContent = objectiveState;
+  document.querySelector('#blueScore').textContent = 'DAMAGE LAB';
+  document.querySelector('#redScore').textContent = 'NO SCORE LIMIT';
+
+  playerKills = 0;
+  playerDeaths = 0;
+  ultimateCharge = 0;
+  heroResource = 0;
+  lastResourcePosition.set(0, 0, 0);
+  flightUntil = 0;
+  temporalHistory = [];
+  lastTemporalSampleAt = 0;
+
+  player = makeFighter(selectedHero, 'blue', true, false, null);
+  fighters.push(player);
+  player.userData.trainingSpawn = new THREE.Vector3(0, 0, 24);
+  resetFighter(player, 0);
+
+  makeTrainingTarget('juggernaut', new THREE.Vector3(-12, 0, -2));
+  makeTrainingTarget('superman', new THREE.Vector3(0, 0, -10), { moving: true });
+  makeTrainingTarget('doctor-doom', new THREE.Vector3(12, 0, -2));
+  makeTrainingTarget('flash', new THREE.Vector3(-6, 0, -20), { moving: true });
+  makeTrainingTarget('batman', new THREE.Vector3(9, 0, -22), { hostile: true });
+
+  refreshTeamUp();
+  applyHudHero();
+  trainingHeroSelect.value = selectedHero.id;
+  renderer.domElement.requestPointerLock();
+}
+
 function startMatch(players = networkPlayers) {
   if (matchStarted) return;
   matchStarted = true;
@@ -855,6 +977,29 @@ function applyHudHero() {
 
 const networkStatus = document.querySelector('#networkStatus');
 const deployBtn = document.querySelector('#deployBtn');
+const trainingBtn = document.querySelector('#trainingBtn');
+
+trainingBtn.onclick = startTrainingRange;
+trainingHeroSelect.onchange = e => switchTrainingHero(e.target.value);
+document.querySelector('#resetCooldownsBtn').onclick = () => {
+  abilityReadyAt = 0;
+  secondaryReadyAt = 0;
+  teamUpReadyAt = 0;
+  showBanner('COOLDOWNS RESET', 550);
+};
+document.querySelector('#fillUltimateBtn').onclick = () => {
+  ultimateCharge = 100;
+  showBanner('ULTIMATE READY', 550);
+};
+document.querySelector('#toggleInfiniteUltBtn').onclick = e => {
+  trainingInfiniteUlt = !trainingInfiniteUlt;
+  e.currentTarget.textContent = `INFINITE ULT: ${trainingInfiniteUlt ? 'ON' : 'OFF'}`;
+  if (trainingInfiniteUlt) ultimateCharge = 100;
+};
+document.querySelector('#resetTargetsBtn').onclick = () => {
+  resetTrainingTargets();
+  showBanner('TARGETS RESET', 550);
+};
 
 function setNetworkStatus(text, error = false) {
   networkStatus.textContent = text;
@@ -1489,7 +1634,7 @@ function activateUltimate(actor, isHuman = false) {
 
 function useUltimate() {
   if (!player?.userData.alive || ultimateCharge < 100) return;
-  ultimateCharge = 0;
+  ultimateCharge = trainingMode && trainingInfiniteUlt ? 100 : 0;
   activateUltimate(player, true);
 }
 
@@ -1551,8 +1696,23 @@ function bestCoverPoint(bot, target) {
   return best;
 }
 
+function updateTrainingTargets(dt, now) {
+  for (const target of fighters) {
+    if (!target.userData.trainingDummy || !target.userData.alive || !target.userData.trainingMoving) continue;
+    const spawn = target.userData.trainingSpawn;
+    const lane = Math.sin(now * 0.0015 + target.userData.trainingPhase) * 5.5;
+    const desired = new THREE.Vector3(spawn.x + lane, spawn.y, spawn.z);
+    const delta = desired.sub(target.position);
+    if (delta.lengthSq() > 0.01) {
+      moveWithCollision(target, delta.normalize().multiplyScalar(Math.min(delta.length(), 3.4 * dt)));
+      target.rotation.y = delta.x >= 0 ? Math.PI / 2 : -Math.PI / 2;
+    }
+  }
+}
+
 function updateBots(dt, now) {
   for (const bot of fighters) {
+    if (bot.userData.trainingDummy) continue;
     if (bot.userData.isPlayer || bot.userData.isRemote || !bot.userData.alive || matchOver || now < bot.userData.stunnedUntil) continue;
     const hero = bot.userData.hero;
     const difficulty = getBotDifficulty(selectedBotDifficulty);
@@ -1616,6 +1776,10 @@ function updateBots(dt, now) {
 function updateRespawns(now) {
   for (const f of fighters) {
     if (f.userData.isRemote || f.userData.alive || now < f.userData.respawnAt || matchOver) continue;
+    if (trainingMode && (f.userData.trainingDummy || f.userData.trainingHostile)) {
+      resetFighter(f, 0);
+      continue;
+    }
     if (joinedLobby && f === player) continue;
     const sameTeam = fighters.filter(x => x.userData.team === f.userData.team);
     resetFighter(f, sameTeam.indexOf(f));
@@ -2054,7 +2218,12 @@ function animate() {
       });
     }
     const isNetworkHost = !joinedLobby || network.playerId === lobbyHostId;
-    if (isNetworkHost) {
+    if (trainingMode) {
+      updateTrainingTargets(dt, now);
+      updateBots(dt, now);
+      document.querySelector('#objectiveState').textContent = 'TRAINING RANGE · DAMAGE / MOBILITY LAB';
+      if (trainingInfiniteUlt) ultimateCharge = 100;
+    } else if (isNetworkHost) {
       updateBots(dt, now);
       updateObjective(dt);
       if (joinedLobby && network.connected && now - lastMatchStateAt >= 100) {
