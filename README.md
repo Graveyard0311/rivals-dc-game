@@ -14,7 +14,7 @@ Private, browser-first Marvel/DC hero-shooter demo.
 - Bot target acquisition, cover/flank movement and combat
 - Domination capture objective, Team Deathmatch, Convoy, and Convergence
 - Mode-specific score progression (Domination to 100; Team Deathmatch to 30)
-- Deaths, kill feed, respawns and K/D tracking
+- Deaths, kill feed, respawns, K/D tracking, and a hold-Tab team scoreboard
 - Ultimate charge and area-damage ultimate
 - Match victory and automatic reset
 
@@ -28,6 +28,7 @@ Private, browser-first Marvel/DC hero-shooter demo.
 - F — team-up ability when an eligible partner is on your team
 - Q — ultimate at 100%
 - Space — jump (default; movement/jump/ability/ultimate keyboard binds are remappable)
+- Tab — hold scoreboard
 
 ## Run locally
 
