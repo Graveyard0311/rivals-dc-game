@@ -15,7 +15,8 @@
     "test:teamups": "node tests/teamups.mjs",
     "test:bots": "node tests/bot-difficulty.mjs",
     "test:arenas": "node tests/arenas.mjs",
-    "test:heroes": "node tests/heroes.mjs"
+    "test:heroes": "node tests/heroes.mjs",
+    "test:results": "node tests/results.mjs"
   },
   "dependencies": {
     "three": "^0.180.0",
