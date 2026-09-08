@@ -21,6 +21,7 @@ jobs:
       - run: npm run test:teamups
       - run: npm run test:bots
       - run: npm run test:arenas
+      - run: npm run test:heroes
       - name: Upload browser build
         uses: actions/upload-artifact@v4
         with:
