@@ -202,6 +202,7 @@ try {
     }
   });
   const damage = await damageOnB;
+  console.log('checkpoint: first damage');
   const secondDamageOnB = nextMessage(b, m => m.type === 'combat-event' && m.event?.kind === 'damage');
   send(a, 'combat-event', {
     event: {
@@ -215,14 +216,18 @@ try {
     }
   });
   await secondDamageOnB;
+  console.log('checkpoint: lethal damage routed');
   const deathAuthority = await deathAuthorityB;
+  console.log('checkpoint: death authority');
   const authoritativeKill = await teamKillOnAFromAuthority;
+  console.log('checkpoint: team kill');
   assert.equal(damage.event.amount, 250);
   assert.equal(damage.event.sourceTeam, 'blue');
   assert.equal(deathAuthority.hp, 0);
   assert.equal(deathAuthority.alive, false);
   assert.equal(authoritativeKill.event.team, 'blue');
   const statsAfterKill = await statsAfterKillA;
+  console.log('checkpoint: player stats');
   const alphaStats = statsAfterKill.stats.find(s => s.id === helloA.playerId);
   const bravoStats = statsAfterKill.stats.find(s => s.id === helloB.playerId);
   assert.equal(alphaStats.kills, 1);
@@ -244,6 +249,7 @@ try {
     }
   });
   const effect = await effectOnB;
+  console.log('checkpoint: ability effect');
   assert.equal(effect.event.effect, 'slow');
   assert.equal(effect.event.duration, 2600);
   assert.deepEqual(effect.event.sourcePosition, { x: 1, y: 0, z: 1 });
@@ -260,6 +266,7 @@ try {
     }
   });
   const botDamage = await botDamageOnHost;
+  console.log('checkpoint: bot damage');
   assert.equal(botDamage.id, helloB.playerId);
   assert.equal(botDamage.event.team, 'blue');
   assert.equal(botDamage.event.slot, 0);
@@ -278,11 +285,13 @@ try {
     }
   });
   const botEffect = await botEffectOnHost;
+  console.log('checkpoint: bot effect');
   assert.equal(botEffect.event.effect, 'root');
   assert.equal(botEffect.event.duration, 1400);
   assert.deepEqual(botEffect.event.sourcePosition, { x: 5, y: 0, z: -4 });
 
   const respawnAuthorityB = await nextMessage(b, m => m.type === 'player-authority' && m.id === helloB.playerId && m.alive === true, 7000);
+  console.log('checkpoint: respawn authority');
   assert.equal(respawnAuthorityB.hp, respawnAuthorityB.maxHp);
 
   console.log('network integration: PASS');
