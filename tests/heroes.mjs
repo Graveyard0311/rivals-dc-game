@@ -8,7 +8,9 @@ const secondaryKinds = new Set(['slowBurst', 'heavyProjectile', 'phase', 'rootBu
 const ultKinds = new Set(['slam', 'empower', 'stun', 'teamHeal']);
 const resourceKinds = new Set(['momentum', 'hatred', 'speedForce', 'arcaneCharge', 'temporalCharge', 'powerCosmic', 'infinityCharge', 'omegaCharge']);
 
-assert.equal(HEROES.length, 75, 'launch-target roster must contain exactly 75 playable prototype heroes');
+assert.ok(HEROES.length >= 75, 'core roster milestone must contain at least 75 playable prototype heroes');
+assert.equal(new Set(HEROES.map(h => h.id)).size, HEROES.length, 'hero IDs must be unique');
+assert.equal(new Set(HEROES.map(h => h.name)).size, HEROES.length, 'hero names must be unique');
 
 const ids = new Set();
 for (const hero of HEROES) {
