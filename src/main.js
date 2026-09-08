@@ -727,7 +727,7 @@ function makeFighter(hero, team, isPlayer = false, isRemote = false, networkId =
   g.userData = {
     hero, team, body, hp: hero.hp, maxHp: hero.hp, alive: true, isPlayer, isRemote, networkId,
     respawnAt: 0, lastAttack: 0, target: null, abilityReadyAt: 0, kills: 0, deaths: 0,
-    ultReadyAt: 18000 + Math.random() * 9000, shieldUntil: 0,
+    ultReadyAt: 18000 + Math.random() * 9000, shieldUntil: 0, spawnProtectedUntil: 0,
     stunnedUntil: 0, empoweredUntil: 0, rootedUntil: 0, slowedUntil: 0, hasteUntil: 0,
     flankSign: Math.random() < 0.5 ? -1 : 1, healthGroup, healthFill,
     head, shoulders, accent, baseBodyY: body.position.y, baseHeadY: head.position.y,
@@ -817,6 +817,7 @@ function resetFighter(f, index = 0) {
   f.visible = true;
   f.userData.target = null;
   f.userData.shieldUntil = 0;
+  f.userData.spawnProtectedUntil = trainingMode ? 0 : performance.now() + 2500;
   f.userData.stunnedUntil = 0;
   f.userData.empoweredUntil = 0;
   f.userData.rootedUntil = 0;
@@ -913,6 +914,14 @@ function heal(target, amount, actor = null, networkApplied = false) {
 
 function damage(target, amount, attacker, networkApplied = false) {
   if (!target?.userData.alive || matchOver) return;
+  const localNow = performance.now();
+  if (target.userData.spawnProtectedUntil > localNow) {
+    if (attacker === player) {
+      showBanner('SPAWN PROTECTED', 350);
+      pulseEffect(target.position, 0x8bd7ff, 2.3, 0.2);
+    }
+    return;
+  }
 
   if (!networkApplied && attacker === player && isNonHostBotReplica(target)) {
     network.sendCombatEvent({
@@ -942,7 +951,7 @@ function damage(target, amount, attacker, networkApplied = false) {
     return;
   }
 
-  const now = performance.now();
+  const now = localNow;
   let dealt = amount;
   if (target.userData.shieldUntil > now) dealt *= 0.42;
   if (attacker?.userData.empoweredUntil > now) dealt *= 1.55;
@@ -1415,6 +1424,9 @@ network.on('player-authority', msg => {
   }
   target.userData.alive = Boolean(msg.alive);
   target.visible = target.userData.alive;
+  if (Number.isFinite(Number(msg.spawnProtectedUntil))) {
+    target.userData.spawnProtectedUntil = performance.now() + Math.max(0, Number(msg.spawnProtectedUntil) - Date.now());
+  }
 
   if (wasAlive && !target.userData.alive && target === player) {
     playerDeaths++;
@@ -2760,7 +2772,10 @@ function updateHud(now) {
     showBanner(`RESPAWN IN ${remain} · H CHANGE HERO · [ / ] SPECTATE`, 300);
   } else {
     document.querySelector('#spectatorLabel')?.classList.add('hidden');
-    if (now < player.userData.stunnedUntil)
+    if (player.userData.spawnProtectedUntil > now) {
+      const remain = Math.max(0, (player.userData.spawnProtectedUntil - now) / 1000);
+      showBanner(`SPAWN PROTECTION · ${remain.toFixed(1)}s`, 250);
+    } else if (now < player.userData.stunnedUntil)
       showBanner('STUNNED', 250);
   }
 }
