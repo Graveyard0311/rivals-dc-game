@@ -130,3 +130,20 @@ Additional bespoke hero behaviors now include:
 - **Batman** — Grapnel Launch adds vertical traversal; holding jump while airborne reduces fall speed for glide-like movement.
 - **Superman** — Solar Flight enables temporary controlled aerial movement with increased travel speed.
 - **Professor X** — Mental Command now targets a nearby ally, granting haste plus a short protective shield.
+
+
+## Controller support
+
+Standard browser Gamepad API controllers are supported alongside keyboard/mouse. Default standard-layout mapping:
+
+- Left stick — movement
+- Right stick — aim
+- RT — primary attack
+- LT — secondary action
+- RB — hero ability
+- LB — team-up
+- Y / Triangle — ultimate
+- A / Cross — jump / ascend while flying
+- Back / View — hold scoreboard
+
+Keyboard and mouse remain active while a controller is connected.

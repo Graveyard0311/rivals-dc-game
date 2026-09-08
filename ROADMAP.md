@@ -66,3 +66,10 @@
 - Live hero switching ✅
 - Cooldown reset / ultimate fill / infinite ultimate ✅
 - Target reset ✅
+
+
+## Input
+- Keyboard/mouse ✅
+- Persistent keyboard remapping ✅
+- Standard Gamepad API controller support ✅
+- Simultaneous keyboard/mouse + controller input ✅

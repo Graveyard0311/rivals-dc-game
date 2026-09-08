@@ -580,7 +580,60 @@ function makeFighter(hero, team, isPlayer = false, isRemote = false, networkId =
 let player = null;
 const fighters = [];
 const keys = {};
+let previousGamepadButtons = [];
+let connectedGamepadId = null;
 const raycaster = new THREE.Raycaster();
+
+function gamepadDeadzone(value, deadzone = 0.18) {
+  if (Math.abs(value) <= deadzone) return 0;
+  return Math.sign(value) * (Math.abs(value) - deadzone) / (1 - deadzone);
+}
+
+function activeGamepad() {
+  const pads = navigator.getGamepads?.() || [];
+  return [...pads].find(Boolean) || null;
+}
+
+function pollGamepad(dt) {
+  const gp = activeGamepad();
+  if (!gp) {
+    previousGamepadButtons = [];
+    connectedGamepadId = null;
+    document.querySelector('#scoreboard')?.classList.add('hidden');
+    return { moveX: 0, moveY: 0, jumpHeld: false };
+  }
+
+  connectedGamepadId = gp.id;
+  const buttons = gp.buttons.map(b => Boolean(b.pressed || b.value > 0.55));
+  const pressed = i => buttons[i] && !previousGamepadButtons[i];
+
+  const lookX = gamepadDeadzone(gp.axes[2] || 0);
+  const lookY = gamepadDeadzone(gp.axes[3] || 0);
+  yaw -= lookX * 2.4 * dt;
+  pitch = Math.max(-0.75, Math.min(0.35, pitch - lookY * 1.85 * dt));
+
+  if ((gp.buttons[7]?.value || 0) > 0.38) playerShoot();
+  if (pressed(6)) useSecondary();
+  if (pressed(5)) usePlayerAbility();
+  if (pressed(4)) useTeamUp();
+  if (pressed(3)) useUltimate();
+
+  const scoreboardHeld = buttons[8];
+  const scoreboard = document.querySelector('#scoreboard');
+  if (scoreboardHeld) {
+    scoreboard?.classList.remove('hidden');
+    renderScoreboard();
+  } else if (!keys.Tab) {
+    scoreboard?.classList.add('hidden');
+  }
+
+  previousGamepadButtons = buttons;
+  return {
+    moveX: gamepadDeadzone(gp.axes[0] || 0),
+    moveY: gamepadDeadzone(gp.axes[1] || 0),
+    jumpHeld: buttons[0]
+  };
+}
 
 function spawnPosition(team, index = 0) {
   const base = team === 'blue' ? BLUE_SPAWN : RED_SPAWN;
@@ -2049,6 +2102,7 @@ function updateHeroResource(dt, now) {
 
 function updatePlayer(dt, now) {
   if (!player?.userData.alive || matchOver || now < player.userData.stunnedUntil) return;
+  const gamepad = pollGamepad(dt);
   const forward = playerForward();
   const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
   const move = new THREE.Vector3();
@@ -2056,14 +2110,17 @@ function updatePlayer(dt, now) {
   if (keys[settings.keybinds.backward]) move.sub(forward);
   if (keys[settings.keybinds.right]) move.add(right);
   if (keys[settings.keybinds.left]) move.sub(right);
-  if (move.lengthSq()) move.normalize();
+  if (gamepad.moveY) move.addScaledVector(forward, -gamepad.moveY);
+  if (gamepad.moveX) move.addScaledVector(right, gamepad.moveX);
+  if (move.lengthSq() > 1) move.normalize();
+  const jumpHeld = Boolean(keys[settings.keybinds.jump] || gamepad.jumpHeld);
 
   let speedBoost = player.userData.empoweredUntil > now ? 1.22 : 1;
   if (selectedHero.resourceKind === 'momentum') speedBoost *= 1 + heroResource * 0.0025;
   if (selectedHero.resourceKind === 'speedForce') speedBoost *= 1 + heroResource * 0.0038;
   if (selectedHero.resourceKind === 'powerCosmic' && now < flightUntil) speedBoost *= 1.35;
   if (selectedHero.id === 'superman' && now < flightUntil) speedBoost *= 1.28;
-  if (selectedHero.id === 'batman' && !grounded && keys[settings.keybinds.jump]) speedBoost *= 1.12;
+  if (selectedHero.id === 'batman' && !grounded && jumpHeld) speedBoost *= 1.12;
   if (player.userData.hasteUntil > now) speedBoost *= 1.32;
   if (player.userData.slowedUntil > now) speedBoost *= 0.58;
   if (player.userData.rootedUntil <= now) moveWithCollision(player, move.multiplyScalar(selectedHero.speed * speedBoost * dt));
@@ -2073,13 +2130,13 @@ function updatePlayer(dt, now) {
     verticalVelocity = 0;
     const climbRate = selectedHero.id === 'superman' ? 6.5 : 5;
     const ceiling = selectedHero.id === 'superman' ? 11 : 9;
-    if (keys[settings.keybinds.jump]) player.position.y = Math.min(ceiling, player.position.y + climbRate * dt);
+    if (jumpHeld) player.position.y = Math.min(ceiling, player.position.y + climbRate * dt);
     player.position.y = Math.max(2.2, player.position.y);
   } else {
-    if (keys[settings.keybinds.jump] && grounded) { verticalVelocity = 8; grounded = false; }
-    const gravity = selectedHero.id === 'batman' && !grounded && keys[settings.keybinds.jump] ? 6.5 : 20;
+    if (jumpHeld && grounded) { verticalVelocity = 8; grounded = false; }
+    const gravity = selectedHero.id === 'batman' && !grounded && jumpHeld ? 6.5 : 20;
     verticalVelocity -= gravity * dt;
-    if (selectedHero.id === 'batman' && !grounded && keys[settings.keybinds.jump]) verticalVelocity = Math.max(verticalVelocity, -2.2);
+    if (selectedHero.id === 'batman' && !grounded && jumpHeld) verticalVelocity = Math.max(verticalVelocity, -2.2);
     player.position.y += verticalVelocity * dt;
     if (player.position.y <= 0) {
       player.position.y = 0;

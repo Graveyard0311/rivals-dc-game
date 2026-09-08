@@ -188,3 +188,15 @@ This is a repository-level GitHub Pages enablement restriction, not a game build
 - Networking is intended for private testing, not hostile public matchmaking.
 - Many heroes use reusable prototype archetypes and still need deeper bespoke mechanics.
 - Wider browser/hardware playtesting remains necessary.
+
+
+## Controller test
+
+1. Connect an Xbox-, PlayStation-, or standard-layout browser-compatible controller before or during a match.
+2. Confirm left stick moves and right stick aims.
+3. Confirm RT primary and LT secondary work.
+4. Confirm RB activates the hero ability, LB activates an available team-up, and Y/Triangle activates a charged ultimate.
+5. Confirm A/Cross jumps and ascends during Superman/Silver Surfer flight.
+6. Confirm Batman can hold A/Cross while airborne to glide.
+7. Hold Back/View and confirm the scoreboard appears.
+8. Confirm keyboard/mouse input still works while the controller is connected.
