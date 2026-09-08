@@ -202,3 +202,12 @@ This is a repository-level GitHub Pages enablement restriction, not a game build
 6. Confirm Batman can hold A/Cross while airborne to glide.
 7. Hold Back/View and confirm the scoreboard appears.
 8. Confirm keyboard/mouse input still works while the controller is connected.
+
+
+## Network authority checks
+
+1. In a two-human private match, damage a teammate's opponent and verify the server-authoritative HP state matches both clients.
+2. Apply a friendly heal to a damaged human and verify server HP increases by the same amount.
+3. Apply a friendly shield to a human, then deal damage before it expires and verify the authoritative damage is reduced.
+4. After the shield expires, verify subsequent damage resolves at full value.
+5. Confirm death, K/D, and respawn timing remain synchronized after heals and shields.
