@@ -221,3 +221,11 @@ Normal matches now end on a persistent results screen instead of automatically r
 - an explicit **Return to Lobby / Menu** action
 
 Private-match clients open the same results flow when the host-authoritative match state reports the match as complete.
+
+
+## Thanos bespoke mechanics
+
+- **Gauntlet Charge** builds from successful melee pressure and damage taken, then slowly decays.
+- **Reality Crush** spends charge to damage, slow, and knock back nearby enemies while smashing breakable cover.
+- **Space Stone** spends charge for a forward reposition with brief protection and impact damage; without enough charge, Shift falls back to Titan Charge.
+- **Infinity Surge** consumes stored Gauntlet Charge to scale its radius, damage, stun, knockback, and environmental destruction.

@@ -976,6 +976,7 @@ function damage(target, amount, attacker, networkApplied = false) {
   if (target === player) {
     cameraShake = Math.min(1.4, cameraShake + dealt / 180);
     if (!joinedLobby && selectedHero.resourceKind === 'arcaneCharge') gainHeroResource(dealt * 0.22);
+    if (!joinedLobby && selectedHero.resourceKind === 'infinityCharge') gainHeroResource(dealt * 0.12);
   }
   target.userData.body.material.emissive = new THREE.Color(0xffffff);
   setTimeout(() => target.userData?.body?.material?.emissive?.set(0x000000), 65);
@@ -1472,8 +1473,10 @@ network.on('player-authority', msg => {
   const previousHp = target.userData.hp;
   if (Number.isFinite(Number(msg.maxHp)) && Number(msg.maxHp) > 0) target.userData.maxHp = Number(msg.maxHp);
   if (Number.isFinite(Number(msg.hp))) target.userData.hp = THREE.MathUtils.clamp(Number(msg.hp), 0, target.userData.maxHp);
-  if (target === player && selectedHero.resourceKind === 'arcaneCharge' && target.userData.hp < previousHp) {
-    gainHeroResource((previousHp - target.userData.hp) * 0.22);
+  if (target === player && target.userData.hp < previousHp) {
+    const lost = previousHp - target.userData.hp;
+    if (selectedHero.resourceKind === 'arcaneCharge') gainHeroResource(lost * 0.22);
+    if (selectedHero.resourceKind === 'infinityCharge') gainHeroResource(lost * 0.12);
   }
   target.userData.alive = Boolean(msg.alive);
   target.visible = target.userData.alive;
@@ -1808,6 +1811,7 @@ function playerShoot() {
       damage(best, dealt, player);
       if (selectedHero.resourceKind === 'hatred') gainHeroResource(10);
       if (selectedHero.resourceKind === 'speedForce') gainHeroResource(-8);
+      if (selectedHero.resourceKind === 'infinityCharge') gainHeroResource(11);
       ultimateCharge = Math.min(100, ultimateCharge + 5);
       pulseEffect(best.position, selectedHero.color, 1.8, 0.18);
     } else {
@@ -1900,6 +1904,28 @@ function useSecondary() {
   secondaryReadyAt = now + (selectedHero.secondaryCooldown || 6) * 1000;
   const kind = selectedHero.secondaryKind || 'heavyBeam';
   const enemies = living(opposingTeam(player.userData.team));
+
+  if (selectedHero.id === 'thanos' && heroResource >= 25) {
+    gainHeroResource(-25);
+    const radius = 10.5;
+    for (const enemy of enemies.filter(e => e.position.distanceTo(player.position) < radius)) {
+      damage(enemy, playerDamageAmount(selectedHero.damage * 1.05, enemy), player);
+      applyEffect(enemy, 'slow', { duration: 2200, actor: player });
+      applyEffect(enemy, 'knockback', { amount: 5.2, actor: player, sourcePosition: player.position });
+    }
+    damageDestructiblesAlongSegment(
+      player.position.clone().add(new THREE.Vector3(-radius, 0, 0)),
+      player.position.clone().add(new THREE.Vector3(radius, 0, 0)),
+      radius,
+      95,
+      player
+    );
+    pulseEffect(player.position, selectedHero.color, radius, 0.65);
+    cameraShake = Math.max(cameraShake, 0.48);
+    tone(92, 0.16, 0.04, 'square');
+    showBanner('REALITY CRUSH', 700);
+    return;
+  }
 
   if (selectedHero.id === 'professor-x') {
     const ally = living(player.userData.team)
@@ -2025,6 +2051,32 @@ function usePlayerAbility() {
   if (!player?.userData.alive) return;
   const now = performance.now();
   if (now < abilityReadyAt) return;
+
+  if (selectedHero.id === 'thanos') {
+    if (heroResource >= 35) {
+      const forward = playerForward();
+      const start = player.position.clone();
+      const destination = player.position.clone().add(forward.multiplyScalar(11));
+      if (!overlapsWorld(destination, 0.72)) {
+        player.position.copy(destination);
+        gainHeroResource(-35);
+        player.userData.shieldUntil = Math.max(player.userData.shieldUntil, now + 1800);
+        damageDestructiblesAlongSegment(start, player.position, 1.5, 120, player);
+        for (const enemy of living(opposingTeam(player.userData.team)).filter(e => e.position.distanceTo(player.position) < 4.8)) {
+          damage(enemy, playerDamageAmount(58, enemy), player);
+          applyEffect(enemy, 'knockback', { amount: 3.5, actor: player, sourcePosition: start });
+        }
+        pulseEffect(player.position, 0x8c6cff, 6.2, 0.55);
+        abilityReadyAt = now + selectedHero.abilityCooldown * 1000;
+        showBanner('SPACE STONE', 700);
+        return;
+      }
+    }
+    abilityReadyAt = now + selectedHero.abilityCooldown * 1000;
+    activateAbility(player, 'dash', true);
+    showBanner('TITAN CHARGE', 650);
+    return;
+  }
 
   if (selectedHero.id === 'juggernaut') {
     const forward = playerForward();
@@ -2164,6 +2216,33 @@ function activateUltimate(actor, isHuman = false) {
 function useUltimate() {
   if (!player?.userData.alive || ultimateCharge < 100) return;
   ultimateCharge = trainingMode && trainingInfiniteUlt ? 100 : 0;
+
+  if (selectedHero.id === 'thanos') {
+    const charge = heroResource;
+    const radius = 13 + charge * 0.045;
+    const damageAmount = 115 + charge * 0.75;
+    const stunDuration = 900 + charge * 7;
+    for (const enemy of living(opposingTeam(player.userData.team)).filter(e => e.position.distanceTo(player.position) < radius)) {
+      damage(enemy, damageAmount, player);
+      applyEffect(enemy, 'stun', { duration: stunDuration, actor: player });
+      applyEffect(enemy, 'knockback', { amount: 4.5 + charge * 0.02, actor: player, sourcePosition: player.position });
+    }
+    damageDestructiblesAlongSegment(
+      player.position.clone().add(new THREE.Vector3(-radius, 0, 0)),
+      player.position.clone().add(new THREE.Vector3(radius, 0, 0)),
+      radius,
+      180 + charge,
+      player
+    );
+    player.userData.shieldUntil = Math.max(player.userData.shieldUntil, performance.now() + 2400);
+    heroResource = 0;
+    pulseEffect(player.position, 0xc7a6ff, radius, 0.8);
+    cameraShake = Math.max(cameraShake, 1.05);
+    showBanner('INFINITY SURGE', 1100);
+    tone(66, 0.28, 0.05, 'sawtooth');
+    return;
+  }
+
   activateUltimate(player, true);
 }
 
@@ -2520,6 +2599,8 @@ function updateHeroResource(dt, now) {
   } else if (selectedHero.resourceKind === 'powerCosmic') {
     const moving = movedDistance > 0.01;
     gainHeroResource(moving ? dt * 16 : -dt * 3);
+  } else if (selectedHero.resourceKind === 'infinityCharge') {
+    gainHeroResource(-dt * 1.2);
   }
 }
 
