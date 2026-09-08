@@ -147,3 +147,9 @@ Standard browser Gamepad API controllers are supported alongside keyboard/mouse.
 - Back / View — hold scoreboard
 
 Keyboard and mouse remain active while a controller is connected.
+
+
+## Villain flagship mechanics
+
+- **Juggernaut** — Unstoppable Charge converts Momentum into a longer charge, impact damage, knockback, and brief damage mitigation.
+- **Gorr** — God Hunter marks a high-health enemy in range; while the mark is active, Gorr gains pursuit speed and bonus melee damage against that target.
