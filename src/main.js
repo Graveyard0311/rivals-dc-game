@@ -13,6 +13,8 @@ const DOMINATION_SCORE_TO_WIN = 100;
 const TDM_SCORE_TO_WIN = 30;
 const CONVOY_SECONDS = 180;
 const CONVOY_RADIUS = 6;
+const CONVERGENCE_CAPTURE_TO_WIN = 100;
+const CONVERGENCE_ESCORT_SECONDS = 150;
 const RESPAWN_SECONDS = 5;
 const BLUE_SPAWN = new THREE.Vector3(0, 0, 28);
 const RED_SPAWN = new THREE.Vector3(0, 0, -28);
@@ -29,6 +31,10 @@ let redScore = 0;
 let convoyProgress = 0;
 let convoyTimeRemaining = CONVOY_SECONDS;
 let convoyEndsAt = 0;
+let convergencePhase = 'capture';
+let convergenceBlueCapture = 0;
+let convergenceRedCapture = 0;
+let convergenceEscortTeam = 'blue';
 let playerDeaths = 0;
 let playerKills = 0;
 let respawnAt = 0;
@@ -65,6 +71,7 @@ app.innerHTML = `
         <button class="mode-option selected" data-mode="domination"><strong>DOMINATION</strong><small>Capture and hold the Nexus · First to 100</small></button>
         <button class="mode-option" data-mode="tdm"><strong>TEAM DEATHMATCH</strong><small>Eliminations score · First to 30</small></button>
         <button class="mode-option" data-mode="convoy"><strong>CONVOY</strong><small>Alliance escorts · Legion defends · 3:00</small></button>
+        <button class="mode-option" data-mode="convergence"><strong>CONVERGENCE</strong><small>Capture first · Winner escorts the payload</small></button>
       </div>
       <div class="difficulty-select">
         <label for="botDifficulty">BOT DIFFICULTY</label>
@@ -166,7 +173,7 @@ renderSettings();
 
 document.querySelectorAll('.mode-option').forEach(button => {
   button.onclick = () => {
-    selectedMode = ['domination', 'tdm', 'convoy'].includes(button.dataset.mode) ? button.dataset.mode : 'domination';
+    selectedMode = ['domination', 'tdm', 'convoy', 'convergence'].includes(button.dataset.mode) ? button.dataset.mode : 'domination';
     document.querySelectorAll('.mode-option').forEach(x => x.classList.toggle('selected', x === button));
   };
 });
@@ -353,7 +360,10 @@ payload.visible = false;
 scene.add(payload);
 
 function updatePayloadTransform() {
-  payload.position.set(0, 0, 20 - convoyProgress * 0.4);
+  const redEscort = selectedMode === 'convergence' && convergenceEscortTeam === 'red';
+  const startZ = redEscort ? -20 : 20;
+  const direction = redEscort ? 1 : -1;
+  payload.position.set(0, 0, startZ + direction * convoyProgress * 0.4);
 }
 updatePayloadTransform();
 
@@ -691,8 +701,12 @@ function startMatch(players = networkPlayers) {
   blueScore = 0;
   redScore = 0;
   convoyProgress = 0;
-  convoyTimeRemaining = CONVOY_SECONDS;
-  convoyEndsAt = performance.now() + CONVOY_SECONDS * 1000;
+  convoyTimeRemaining = selectedMode === 'convergence' ? CONVERGENCE_ESCORT_SECONDS : CONVOY_SECONDS;
+  convoyEndsAt = performance.now() + convoyTimeRemaining * 1000;
+  convergencePhase = 'capture';
+  convergenceBlueCapture = 0;
+  convergenceRedCapture = 0;
+  convergenceEscortTeam = 'blue';
   updatePayloadTransform();
   playerKills = 0;
   playerDeaths = 0;
@@ -728,8 +742,8 @@ function startMatch(players = networkPlayers) {
       if (!f.userData.isPlayer && !f.userData.isRemote) f.userData.syncSlot = botSlot++;
     });
   }
-  objective.visible = selectedMode === 'domination';
-  objectiveRing.visible = selectedMode === 'domination';
+  objective.visible = selectedMode === 'domination' || selectedMode === 'convergence';
+  objectiveRing.visible = selectedMode === 'domination' || selectedMode === 'convergence';
   payload.visible = selectedMode === 'convoy';
   refreshTeamUp();
   applyHudHero();
@@ -808,7 +822,16 @@ network.on('match-state', msg => {
   redScore = Number(state.redScore || 0);
   convoyProgress = THREE.MathUtils.clamp(Number(state.convoyProgress || 0), 0, 100);
   convoyTimeRemaining = Math.max(0, Number(state.convoyTimeRemaining || CONVOY_SECONDS));
+  convergencePhase = state.convergencePhase === 'escort' ? 'escort' : 'capture';
+  convergenceBlueCapture = THREE.MathUtils.clamp(Number(state.convergenceBlueCapture || 0), 0, CONVERGENCE_CAPTURE_TO_WIN);
+  convergenceRedCapture = THREE.MathUtils.clamp(Number(state.convergenceRedCapture || 0), 0, CONVERGENCE_CAPTURE_TO_WIN);
+  convergenceEscortTeam = state.convergenceEscortTeam === 'red' ? 'red' : 'blue';
   updatePayloadTransform();
+  if (selectedMode === 'convergence') {
+    objective.visible = convergencePhase === 'capture';
+    objectiveRing.visible = convergencePhase === 'capture';
+    payload.visible = convergencePhase === 'escort';
+  }
   objectiveState = state.objectiveState || 'CAPTURE THE NEXUS';
   matchOver = Boolean(state.matchOver);
 
@@ -830,6 +853,18 @@ network.on('match-state', msg => {
   if (selectedMode === 'convoy') {
     document.querySelector('#blueScore').textContent = `ALLIANCE ${Math.floor(convoyProgress)}%`;
     document.querySelector('#redScore').textContent = `LEGION ${Math.ceil(convoyTimeRemaining)}s`;
+  } else if (selectedMode === 'convergence') {
+    if (convergencePhase === 'capture') {
+      document.querySelector('#blueScore').textContent = `ALLIANCE ${Math.floor(convergenceBlueCapture)}`;
+      document.querySelector('#redScore').textContent = `LEGION ${Math.floor(convergenceRedCapture)}`;
+    } else {
+      document.querySelector('#blueScore').textContent = convergenceEscortTeam === 'blue'
+        ? `ALLIANCE ${Math.floor(convoyProgress)}%`
+        : `ALLIANCE ${Math.ceil(convoyTimeRemaining)}s`;
+      document.querySelector('#redScore').textContent = convergenceEscortTeam === 'red'
+        ? `LEGION ${Math.floor(convoyProgress)}%`
+        : `LEGION ${Math.ceil(convoyTimeRemaining)}s`;
+    }
   } else {
     document.querySelector('#blueScore').textContent = `ALLIANCE ${Math.floor(blueScore)}`;
     document.querySelector('#redScore').textContent = `LEGION ${Math.floor(redScore)}`;
@@ -919,7 +954,7 @@ network.on('host-changed', msg => {
 
 network.on('match-start', msg => {
   networkPlayers = msg.players || networkPlayers;
-  selectedMode = ['domination', 'tdm', 'convoy'].includes(msg.mode) ? msg.mode : 'domination';
+  selectedMode = ['domination', 'tdm', 'convoy', 'convergence'].includes(msg.mode) ? msg.mode : 'domination';
   selectedBotDifficulty = ['easy', 'normal', 'hard', 'expert'].includes(msg.difficulty) ? msg.difficulty : 'normal';
   selectedArena = ['nexus', 'gotham', 'themyscira'].includes(msg.arena) ? msg.arena : 'nexus';
   applyArenaPreset(selectedArena);
@@ -1315,7 +1350,8 @@ function updateBots(dt, now) {
     bot.userData.target = target;
     updateBotAbility(bot, now);
 
-    const point = selectedMode === 'convoy' ? payload.position.clone().setY(0) : new THREE.Vector3(0, 0, 0);
+    const escortObjective = selectedMode === 'convoy' || (selectedMode === 'convergence' && convergencePhase === 'escort');
+    const point = escortObjective ? payload.position.clone().setY(0) : new THREE.Vector3(0, 0, 0);
     let desired = point.clone().sub(bot.position);
 
     const hpPct = bot.userData.hp / bot.userData.maxHp;
@@ -1413,7 +1449,101 @@ function updateConvoy(dt, now) {
   }
 }
 
+function updateConvergence(dt, now) {
+  if (convergencePhase === 'capture') {
+    const blueOn = living('blue').filter(f => Math.hypot(f.position.x, f.position.z) < OBJECTIVE_RADIUS).length;
+    const redOn = living('red').filter(f => Math.hypot(f.position.x, f.position.z) < OBJECTIVE_RADIUS).length;
+
+    if (blueOn > redOn) {
+      convergenceBlueCapture = Math.min(CONVERGENCE_CAPTURE_TO_WIN, convergenceBlueCapture + dt * (3 + blueOn * 0.35));
+      objectiveState = `ALLIANCE SECURING CONVERGENCE · ${Math.floor(convergenceBlueCapture)}%`;
+      objective.material.color.set(0x3c9dff);
+      objective.material.emissive.set(0x1676d2);
+    } else if (redOn > blueOn) {
+      convergenceRedCapture = Math.min(CONVERGENCE_CAPTURE_TO_WIN, convergenceRedCapture + dt * (3 + redOn * 0.35));
+      objectiveState = `LEGION SECURING CONVERGENCE · ${Math.floor(convergenceRedCapture)}%`;
+      objective.material.color.set(0xff536d);
+      objective.material.emissive.set(0xb9213d);
+    } else if (blueOn && redOn) {
+      objectiveState = 'CONVERGENCE CONTESTED';
+      objective.material.color.set(0xa070ff);
+      objective.material.emissive.set(0x6237c8);
+    } else {
+      objectiveState = 'CAPTURE THE CONVERGENCE';
+    }
+
+    document.querySelector('#blueScore').textContent = `ALLIANCE ${Math.floor(convergenceBlueCapture)}`;
+    document.querySelector('#redScore').textContent = `LEGION ${Math.floor(convergenceRedCapture)}`;
+    document.querySelector('#objectiveState').textContent = objectiveState;
+
+    if (convergenceBlueCapture >= CONVERGENCE_CAPTURE_TO_WIN || convergenceRedCapture >= CONVERGENCE_CAPTURE_TO_WIN) {
+      convergenceEscortTeam = convergenceBlueCapture >= CONVERGENCE_CAPTURE_TO_WIN ? 'blue' : 'red';
+      convergencePhase = 'escort';
+      convoyProgress = 0;
+      convoyTimeRemaining = CONVERGENCE_ESCORT_SECONDS;
+      convoyEndsAt = now + CONVERGENCE_ESCORT_SECONDS * 1000;
+      updatePayloadTransform();
+      objective.visible = false;
+      objectiveRing.visible = false;
+      payload.visible = true;
+      objectiveState = `${convergenceEscortTeam === 'blue' ? 'ALLIANCE' : 'LEGION'} WON THE POINT · ESCORT THE PAYLOAD`;
+      showBanner(`${convergenceEscortTeam === 'blue' ? 'ALLIANCE' : 'LEGION'} CONTROLS THE PAYLOAD`, 1800);
+    }
+    return;
+  }
+
+  convoyTimeRemaining = Math.max(0, (convoyEndsAt - now) / 1000);
+  const escortTeam = convergenceEscortTeam;
+  const defendTeam = opposingTeam(escortTeam);
+  const escortOn = living(escortTeam).filter(f => f.position.distanceTo(payload.position) < CONVOY_RADIUS).length;
+  const defendOn = living(defendTeam).filter(f => f.position.distanceTo(payload.position) < CONVOY_RADIUS).length;
+
+  if (escortOn > 0 && defendOn === 0) {
+    const escortBoost = Math.min(1.75, 1 + (escortOn - 1) * 0.16);
+    convoyProgress = Math.min(100, convoyProgress + dt * 4.8 * escortBoost);
+    updatePayloadTransform();
+    objectiveState = `${escortTeam === 'blue' ? 'ALLIANCE' : 'LEGION'} ESCORTING · ${Math.floor(convoyProgress)}% · ${Math.ceil(convoyTimeRemaining)}s`;
+  } else if (escortOn > 0 && defendOn > 0) {
+    objectiveState = `CONVERGENCE PAYLOAD CONTESTED · ${Math.ceil(convoyTimeRemaining)}s`;
+  } else {
+    objectiveState = `ESCORT THE CONVERGENCE PAYLOAD · ${Math.floor(convoyProgress)}% · ${Math.ceil(convoyTimeRemaining)}s`;
+  }
+
+  if (escortTeam === 'blue') {
+    blueScore = convoyProgress;
+    redScore = Math.max(0, 100 - convoyProgress);
+    document.querySelector('#blueScore').textContent = `ALLIANCE ${Math.floor(convoyProgress)}%`;
+    document.querySelector('#redScore').textContent = `LEGION ${Math.ceil(convoyTimeRemaining)}s`;
+  } else {
+    redScore = convoyProgress;
+    blueScore = Math.max(0, 100 - convoyProgress);
+    document.querySelector('#blueScore').textContent = `ALLIANCE ${Math.ceil(convoyTimeRemaining)}s`;
+    document.querySelector('#redScore').textContent = `LEGION ${Math.floor(convoyProgress)}%`;
+  }
+  document.querySelector('#objectiveState').textContent = objectiveState;
+
+  if (!matchOver && convoyProgress >= 100) {
+    matchOver = true;
+    if (escortTeam === 'blue') { blueScore = 100; redScore = 0; }
+    else { redScore = 100; blueScore = 0; }
+    showBanner(escortTeam === 'blue' ? 'ALLIANCE VICTORY' : 'LEGION VICTORY', 5000);
+    setTimeout(() => location.reload(), 5200);
+  } else if (!matchOver && convoyTimeRemaining <= 0) {
+    matchOver = true;
+    const winner = defendTeam;
+    if (winner === 'blue') { blueScore = 100; redScore = 0; }
+    else { redScore = 100; blueScore = 0; }
+    showBanner(winner === 'blue' ? 'ALLIANCE VICTORY' : 'LEGION VICTORY', 5000);
+    setTimeout(() => location.reload(), 5200);
+  }
+}
+
 function updateObjective(dt) {
+  if (selectedMode === 'convergence') {
+    updateConvergence(dt, performance.now());
+    return;
+  }
+
   if (selectedMode === 'convoy') {
     updateConvoy(dt, performance.now());
     return;
@@ -1640,7 +1770,10 @@ function animate() {
             alive: f.userData.alive
           }));
         network.send('match-state', {
-          state: { blueScore, redScore, objectiveState, matchOver, convoyProgress, convoyTimeRemaining, bots }
+          state: {
+            blueScore, redScore, objectiveState, matchOver, convoyProgress, convoyTimeRemaining,
+            convergencePhase, convergenceBlueCapture, convergenceRedCapture, convergenceEscortTeam, bots
+          }
         });
       }
     }
