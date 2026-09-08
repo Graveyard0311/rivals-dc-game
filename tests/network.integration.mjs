@@ -211,6 +211,10 @@ try {
       convergenceBlueCapture: 100,
       convergenceRedCapture: 64,
       convergenceEscortTeam: 'blue',
+      destructibles: [
+        { id: 'nexus-a', hp: 90, alive: true },
+        { id: 'nexus-b', hp: 0, alive: false }
+      ],
       bots: [{
         slot: 0,
         team: 'blue',
@@ -233,6 +237,10 @@ try {
   assert.equal(sharedState.state.convergenceBlueCapture, 100);
   assert.equal(sharedState.state.convergenceRedCapture, 64);
   assert.equal(sharedState.state.convergenceEscortTeam, 'blue');
+  assert.equal(sharedState.state.destructibles.length, 2);
+  assert.equal(sharedState.state.destructibles[0].id, 'nexus-a');
+  assert.equal(sharedState.state.destructibles[0].hp, 90);
+  assert.equal(sharedState.state.destructibles[1].alive, false);
   assert.equal(sharedState.state.bots.length, 1);
   assert.equal(sharedState.state.bots[0].kills, 2);
   assert.equal(sharedState.state.bots[0].deaths, 1);
@@ -305,7 +313,21 @@ try {
   assert.equal(effect.event.duration, 2600);
   assert.deepEqual(effect.event.sourcePosition, { x: 1, y: 0, z: 1 });
 
-  const botDamageOnHost = nextMessage(a, m => m.type === 'combat-event' && m.event?.kind === 'bot-damage');
+  const worldDamageOnHost = nextMessage(a, m => m.type === 'combat-event' && m.event?.kind === 'world-damage');
+  send(b, 'combat-event', {
+    event: {
+      kind: 'world-damage',
+      destructibleId: 'nexus-a',
+      amount: 88,
+      sourceName: 'Gorr the God Butcher'
+    }
+  });
+  const worldDamage = await worldDamageOnHost;
+  assert.equal(worldDamage.id, helloB.playerId);
+  assert.equal(worldDamage.event.destructibleId, 'nexus-a');
+  assert.equal(worldDamage.event.amount, 88);
+
+    const botDamageOnHost = nextMessage(a, m => m.type === 'combat-event' && m.event?.kind === 'bot-damage');
   send(b, 'combat-event', {
     event: {
       kind: 'bot-damage',
