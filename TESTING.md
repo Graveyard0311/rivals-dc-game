@@ -249,3 +249,14 @@ This is a repository-level GitHub Pages enablement restriction, not a game build
 4. On controller, use D-pad Left/Right to cycle.
 5. Confirm spectator camera collision prevents wall clipping.
 6. Confirm normal player camera/control resumes automatically after respawn.
+
+
+## In-match hero swap test
+
+1. Start an offline match and press **H** while near your team spawn.
+2. Select a different hero and confirm the HUD, HP cap, attacks, resource meter, and model colors update without resetting K/D or match score.
+3. Leave spawn and confirm **H** no longer opens the swap panel while alive.
+4. Die, press **H** during the respawn timer, and select a different hero.
+5. Confirm the respawn countdown continues normally rather than instantly reviving you.
+6. Confirm the new hero appears when you respawn and hero-specific resources/cooldowns are reset.
+7. In a private match, swap while dead and confirm the other client sees the new hero immediately.
