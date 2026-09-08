@@ -160,3 +160,11 @@ Keyboard and mouse remain active while a controller is connected.
 Each arena now includes six predefined breakable cover pieces. Damage removes their HP; once destroyed, the mesh and collision volume are removed to open the lane. Projectile, hitscan/beam, melee, and Juggernaut charge interactions can destroy cover.
 
 In private matches, the host owns destructible HP/alive state. Non-host world damage is routed to the host and the regular match snapshot replicates destruction state to all clients.
+
+
+## Camera controls
+
+The third-person camera now resolves collision against arena structures and live destructible cover, pulling forward instead of clipping through geometry.
+
+- **V** — swap left/right shoulder
+- **R3 / Right Stick Click** — swap shoulder on controller
