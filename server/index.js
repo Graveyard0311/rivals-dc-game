@@ -30,6 +30,7 @@ function resetPlayerCombatState(player) {
   player.hp = hero.hp;
   player.alive = true;
   player.respawnAt = 0;
+  player.shieldUntil = 0;
 }
 
 function code() {
@@ -108,6 +109,7 @@ function joinLobby(ws, lobby, lobbyCode, msg) {
     hp: hero.hp,
     alive: true,
     respawnAt: 0,
+    shieldUntil: 0,
     kills: 0,
     deaths: 0
   };
@@ -249,7 +251,8 @@ wss.on('connection', ws => {
           ? event.sourceTeam
           : self.team;
         if (!target || target.team === sourceTeam || !target.alive || !Number.isFinite(amount) || amount <= 0) return;
-        const dealt = Math.min(amount, 250);
+        let dealt = Math.min(amount, 250);
+        if (Number(target.shieldUntil || 0) > Date.now()) dealt *= 0.42;
         const claimedSourceId = String(event.sourceId || '');
         const sourcePlayer = claimedSourceId ? lobby.clients.get(claimedSourceId) : null;
         const authoritativeSourceId = sourcePlayer && sourcePlayer.team === sourceTeam ? claimedSourceId : '';
@@ -310,6 +313,16 @@ wss.on('connection', ws => {
         if (!target || (!hostile && !friendly)) return;
         if (hostile && target.team === sourceTeam) return;
         if (friendly && target.team !== sourceTeam) return;
+
+        if (friendly && !target.alive) return;
+        if (effect === 'heal') {
+          target.hp = Math.min(target.maxHp, target.hp + amount);
+          broadcastPlayerAuthority(lobby, targetId);
+        }
+        if (effect === 'shield') {
+          target.shieldUntil = Math.max(Number(target.shieldUntil || 0), Date.now() + duration);
+        }
+
         send(target.ws, {
           type: 'combat-event',
           id: String(event.sourceId || ws.meta.id),
