@@ -237,3 +237,10 @@ Private-match clients open the same results flow when the host-authoritative mat
 - **Boom Tube** spends charge to reposition Darkseid forward while granting brief protection.
 - **Omega Sanction** spends charge to damage, root, and slow a target in front of Darkseid.
 - **Anti-Life Equation** consumes remaining Omega Charge to scale its crowd-control radius, damage, and stun duration.
+
+
+## 75-hero launch-target roster
+
+The playable prototype roster now contains **75 heroes** across Marvel and DC. The expansion adds the previously approved wave (including Wolverine, Jean Grey, Magneto, Deadpool, Invisible Woman, Human Torch, Shang-Chi, Daredevil, Sentry, Doctor Octopus, Green Goblin, Miles Morales, Loki, Moon Knight, Reverse-Flash, Red Hood, Blue Beetle, Swamp Thing, Supergirl, Doctor Fate, Beast Boy, Lobo, Sinestro, Doomsday, Brainiac, Bane, and Hawkgirl) plus core Marvel anchors needed to complete the 75-character target: Spider-Man, Iron Man, Captain America, Thor, Hulk, Black Panther, Scarlet Witch, Star-Lord, Rocket Raccoon, Groot, Venom, Storm, Hawkeye, and Black Widow.
+
+This establishes the roster data/selection/combat archetypes. Bespoke character mechanics continue in dedicated hero-system waves rather than blocking roster availability.

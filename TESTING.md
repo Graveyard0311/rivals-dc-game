@@ -295,3 +295,12 @@ This is a repository-level GitHub Pages enablement restriction, not a game build
 4. Confirm an MVP is selected from match K/D data and the local player's final K/D is shown.
 5. In a private match, confirm the non-host client opens results when the host-authoritative match state ends.
 6. Select **Return to Lobby / Menu** and confirm the app resets cleanly.
+
+
+## 75-hero roster smoke test
+
+1. Open hero select and confirm the roster contains 75 selectable heroes.
+2. Select several newly added Marvel and DC heroes and deploy into Training Range.
+3. Confirm primary, secondary, Shift ability, ultimate label, HP, and role render for each selection.
+4. Swap among expansion heroes with the Training Range selector and in-match spawn hero swap.
+5. Confirm no duplicate IDs and that the hero-definition regression reports exactly 75 heroes.

@@ -112,3 +112,11 @@
 - MVP selection from synchronized K/D ✅
 - Full team result tables ✅
 - Explicit return-to-menu flow ✅
+
+
+## 75-character roster milestone
+- Launch-target roster data: **75/75 playable prototype heroes** ✅
+- Approved Marvel/DC expansion wave represented in hero select ✅
+- Core Marvel anchor wave added to fill the target roster ✅
+- Bespoke mechanic conversion for expansion heroes — in progress
+- Roster-wide balance/VFX/animation pass — future
