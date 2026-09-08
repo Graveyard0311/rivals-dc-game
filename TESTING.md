@@ -38,6 +38,9 @@ Offline matches run as 6v6 with bots filling every non-human slot.
 6. Enable **Infinite Ult** and confirm Q remains available after activation.
 7. Destroy practice targets and confirm they respawn at their range positions.
 8. Use **Reset Targets** and confirm all targets return to full HP and their original locations.
+9. As Batman, use Shift to gain vertical height and hold Space while airborne to confirm reduced fall speed.
+10. As Superman, use Shift and confirm temporary aerial movement with increased travel speed.
+11. As Professor X, use RMB near an ally and confirm Mental Command grants haste plus a short shield.
 
 ## Two-human private match test
 
