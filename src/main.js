@@ -943,17 +943,24 @@ network.on('match-state', msg => {
 network.on('player-authority', msg => {
   const target = msg.id === network.playerId ? player : remoteFighters.get(msg.id);
   if (!target) return;
+  const wasAlive = target.userData.alive;
+
   if (Number.isFinite(Number(msg.maxHp)) && Number(msg.maxHp) > 0) target.userData.maxHp = Number(msg.maxHp);
   if (Number.isFinite(Number(msg.hp))) target.userData.hp = THREE.MathUtils.clamp(Number(msg.hp), 0, target.userData.maxHp);
   target.userData.alive = Boolean(msg.alive);
   target.visible = target.userData.alive;
 
-  if (target === player) {
-    if (!target.userData.alive) {
-      playerDeaths = Math.max(playerDeaths, playerDeaths + 1);
-      respawnAt = performance.now() + Math.max(0, Number(msg.respawnAt || Date.now()) - Date.now());
-    } else {
+  if (wasAlive && !target.userData.alive && target === player) {
+    playerDeaths++;
+    respawnAt = performance.now() + Math.max(0, Number(msg.respawnAt || Date.now()) - Date.now());
+  }
+
+  if (!wasAlive && target.userData.alive) {
+    const sameTeam = fighters.filter(f => f.userData.team === target.userData.team);
+    resetFighter(target, sameTeam.indexOf(target));
+    if (target === player) {
       respawnAt = 0;
+      showBanner('RESPAWNED');
     }
   }
 });
