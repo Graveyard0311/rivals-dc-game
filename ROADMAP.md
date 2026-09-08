@@ -57,3 +57,12 @@
 - Performance optimization ✅ transient projectile/VFX pooling and caps / expanding
 - Animation/model/audio polish ✅ role-distinct placeholder silhouettes + locomotion motion + procedural audio / production assets remaining
 - Final private-demo QA ✅ automated build/network/team-up/bot/arena/hero regression suite + tester handoff guide / broader browser playtest remaining
+
+
+## Training/validation tools
+- Dedicated Training Range ✅
+- Stationary and moving targets ✅
+- Hostile practice target ✅
+- Live hero switching ✅
+- Cooldown reset / ultimate fill / infinite ultimate ✅
+- Target reset ✅
