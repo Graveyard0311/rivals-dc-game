@@ -42,7 +42,7 @@
 
 ## Milestone E — Content expansion
 - Full priority roster ✅ 33-character prototype roster / expanding
-- Individual bespoke hero kits ✅ / expanding — Juggernaut Momentum, Gorr Hatred, Flash Speed Force, Doom Arcane Charge, Kang Temporal Rewind, Silver Surfer Cosmic Flight, Batman Grapnel/Glide, Superman Flight, Professor X Mental Command
+- Individual bespoke hero kits ✅ / expanding — Juggernaut Momentum, Gorr Hatred, Flash Speed Force, Doom Arcane Charge, Kang Temporal Rewind, Silver Surfer Cosmic Flight, Batman Grapnel/Glide, Superman Flight, Professor X Mental Command, Juggernaut Unstoppable Charge, Gorr God Hunter
 - Team Deathmatch ✅
 - Team-up abilities ✅ reusable pair registry + five prototype team-ups
 - Additional arenas ✅ Nexus Arena / Gotham Industrial / Themyscira Ruins

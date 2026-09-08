@@ -54,6 +54,8 @@ let lastResourcePosition = new THREE.Vector3();
 let flightUntil = 0;
 let temporalHistory = [];
 let lastTemporalSampleAt = 0;
+let gorrMarkedTarget = null;
+let gorrMarkUntil = 0;
 let teamUpReadyAt = 0;
 let activeTeamUp = null;
 let audioCtx = null;
@@ -935,6 +937,8 @@ function startTrainingRange() {
   flightUntil = 0;
   temporalHistory = [];
   lastTemporalSampleAt = 0;
+  gorrMarkedTarget = null;
+  gorrMarkUntil = 0;
 
   player = makeFighter(selectedHero, 'blue', true, false, null);
   fighters.push(player);
@@ -1396,8 +1400,11 @@ function playerForward() {
   return new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
 }
 
-function playerDamageAmount(base) {
-  if (selectedHero.resourceKind === 'hatred') return base * (1 + heroResource * 0.0045);
+function playerDamageAmount(base, target = null) {
+  if (selectedHero.resourceKind === 'hatred') {
+    const markBonus = target && target === gorrMarkedTarget && performance.now() < gorrMarkUntil ? 1.28 : 1;
+    return base * (1 + heroResource * 0.0045) * markBonus;
+  }
   if (selectedHero.resourceKind === 'momentum') return base * (1 + heroResource * 0.003);
   if (selectedHero.resourceKind === 'speedForce') return base * (heroResource >= 60 ? 1.18 : 1);
   if (selectedHero.resourceKind === 'powerCosmic') return base * (1 + heroResource * 0.0015);
@@ -1435,7 +1442,7 @@ function playerShoot() {
       if (dist < bestScore) { best = target; bestScore = dist; }
     }
     if (best) {
-      const dealt = playerDamageAmount(selectedHero.damage);
+      const dealt = playerDamageAmount(selectedHero.damage, best);
       damage(best, dealt, player);
       if (selectedHero.resourceKind === 'hatred') gainHeroResource(10);
       if (selectedHero.resourceKind === 'speedForce') gainHeroResource(-8);
@@ -1457,7 +1464,7 @@ function playerShoot() {
   if (!hits.length) return;
   const target = fighters.find(f => f.userData.body === hits[0].object);
   if (target && player.position.distanceTo(target.position) <= selectedHero.range + 4) {
-    damage(target, playerDamageAmount(selectedHero.damage), player);
+    damage(target, playerDamageAmount(selectedHero.damage, target), player);
     if (selectedHero.resourceKind === 'hatred') gainHeroResource(7);
     ultimateCharge = Math.min(100, ultimateCharge + 4.5);
     pulseEffect(target.position, selectedHero.color, 1.5, 0.22);
@@ -1627,6 +1634,42 @@ function usePlayerAbility() {
   if (!player?.userData.alive) return;
   const now = performance.now();
   if (now < abilityReadyAt) return;
+
+  if (selectedHero.id === 'juggernaut') {
+    const forward = playerForward();
+    const start = player.position.clone();
+    moveWithCollision(player, forward.clone().multiplyScalar(12 + heroResource * 0.04));
+    const enemies = living(opposingTeam(player.userData.team));
+    for (const enemy of enemies.filter(e => e.position.distanceTo(player.position) < 5.2)) {
+      damage(enemy, playerDamageAmount(70 + heroResource * 0.55, enemy), player);
+      applyEffect(enemy, 'knockback', { amount: 5.5 + heroResource * 0.025, actor: player, sourcePosition: start });
+    }
+    gainHeroResource(22);
+    player.userData.shieldUntil = Math.max(player.userData.shieldUntil, now + 1600);
+    abilityReadyAt = now + selectedHero.abilityCooldown * 1000;
+    pulseEffect(player.position, selectedHero.color, 7.5, 0.5);
+    cameraShake = Math.max(cameraShake, 0.65);
+    showBanner('UNSTOPPABLE CHARGE', 750);
+    return;
+  }
+
+  if (selectedHero.id === 'gorr') {
+    const candidates = living(opposingTeam(player.userData.team))
+      .filter(e => player.position.distanceTo(e.position) <= 26)
+      .sort((a, b) => b.userData.maxHp - a.userData.maxHp);
+    const target = candidates[0];
+    if (!target) {
+      showBanner('NO GOD TO HUNT', 600);
+      return;
+    }
+    gorrMarkedTarget = target;
+    gorrMarkUntil = now + 8500;
+    gainHeroResource(18);
+    abilityReadyAt = now + selectedHero.abilityCooldown * 1000;
+    pulseEffect(target.position, selectedHero.color, 5.5, 0.65);
+    showBanner(`GOD HUNTER · ${target.userData.hero.name.toUpperCase()}`, 950);
+    return;
+  }
 
   if (selectedHero.id === 'batman') {
     const forward = playerForward();
@@ -2117,6 +2160,7 @@ function updatePlayer(dt, now) {
 
   let speedBoost = player.userData.empoweredUntil > now ? 1.22 : 1;
   if (selectedHero.resourceKind === 'momentum') speedBoost *= 1 + heroResource * 0.0025;
+  if (selectedHero.id === 'gorr' && gorrMarkedTarget?.userData.alive && now < gorrMarkUntil) speedBoost *= 1.16;
   if (selectedHero.resourceKind === 'speedForce') speedBoost *= 1 + heroResource * 0.0038;
   if (selectedHero.resourceKind === 'powerCosmic' && now < flightUntil) speedBoost *= 1.35;
   if (selectedHero.id === 'superman' && now < flightUntil) speedBoost *= 1.28;

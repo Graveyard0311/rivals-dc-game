@@ -41,6 +41,8 @@ Offline matches run as 6v6 with bots filling every non-human slot.
 9. As Batman, use Shift to gain vertical height and hold Space while airborne to confirm reduced fall speed.
 10. As Superman, use Shift and confirm temporary aerial movement with increased travel speed.
 11. As Professor X, use RMB near an ally and confirm Mental Command grants haste plus a short shield.
+12. As Juggernaut, build Momentum by moving, use Shift, and confirm Unstoppable Charge travels farther, damages/knocks back nearby targets, and grants a brief shield window.
+13. As Gorr, use Shift near multiple targets and confirm God Hunter marks the highest-health target; pursue and strike it to confirm bonus movement and melee pressure.
 
 ## Two-human private match test
 
