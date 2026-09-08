@@ -43,6 +43,10 @@ Offline matches run as 6v6 with bots filling every non-human slot.
 11. As Professor X, use RMB near an ally and confirm Mental Command grants haste plus a short shield.
 12. As Juggernaut, build Momentum by moving, use Shift, and confirm Unstoppable Charge travels farther, damages/knocks back nearby targets, and grants a brief shield window.
 13. As Gorr, use Shift near multiple targets and confirm God Hunter marks the highest-health target; pursue and strike it to confirm bonus movement and melee pressure.
+14. As Thanos, build Gauntlet Charge by landing melee hits and taking damage.
+15. Use RMB above 25 charge and confirm Reality Crush damages, slows, knocks back, and damages breakable cover.
+16. Use Shift above 35 charge and confirm Space Stone repositions Thanos, grants brief protection, and damages nearby enemies; below 35 charge, confirm Shift falls back to Titan Charge.
+17. Fill ultimate at low and high Gauntlet Charge and confirm Infinity Surge scales up with stored charge before consuming it.
 
 ## Two-human private match test
 
