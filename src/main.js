@@ -49,6 +49,9 @@ let secondaryReadyAt = 0;
 let ultimateCharge = 0;
 let heroResource = 0;
 let lastResourcePosition = new THREE.Vector3();
+let flightUntil = 0;
+let temporalHistory = [];
+let lastTemporalSampleAt = 0;
 let teamUpReadyAt = 0;
 let activeTeamUp = null;
 let audioCtx = null;
@@ -691,7 +694,10 @@ function damage(target, amount, attacker, networkApplied = false) {
   if (attacker?.userData.empoweredUntil > now) dealt *= 1.55;
   target.userData.hp -= dealt;
   if (attacker === player) showHitFeedback(dealt);
-  if (target === player) cameraShake = Math.min(1.4, cameraShake + dealt / 180);
+  if (target === player) {
+    cameraShake = Math.min(1.4, cameraShake + dealt / 180);
+    if (!joinedLobby && selectedHero.resourceKind === 'arcaneCharge') gainHeroResource(dealt * 0.22);
+  }
   target.userData.body.material.emissive = new THREE.Color(0xffffff);
   setTimeout(() => target.userData?.body?.material?.emissive?.set(0x000000), 65);
 
@@ -780,6 +786,9 @@ function startMatch(players = networkPlayers) {
   ultimateCharge = 0;
   heroResource = 0;
   lastResourcePosition.set(0, 0, 0);
+  flightUntil = 0;
+  temporalHistory = [];
+  lastTemporalSampleAt = 0;
   document.querySelector('#heroSelect').classList.add('hidden');
   document.querySelector('#hud').classList.remove('hidden');
 
@@ -953,8 +962,12 @@ network.on('player-authority', msg => {
   if (!target) return;
   const wasAlive = target.userData.alive;
 
+  const previousHp = target.userData.hp;
   if (Number.isFinite(Number(msg.maxHp)) && Number(msg.maxHp) > 0) target.userData.maxHp = Number(msg.maxHp);
   if (Number.isFinite(Number(msg.hp))) target.userData.hp = THREE.MathUtils.clamp(Number(msg.hp), 0, target.userData.maxHp);
+  if (target === player && selectedHero.resourceKind === 'arcaneCharge' && target.userData.hp < previousHp) {
+    gainHeroResource((previousHp - target.userData.hp) * 0.22);
+  }
   target.userData.alive = Boolean(msg.alive);
   target.visible = target.userData.alive;
 
@@ -1155,6 +1168,7 @@ function playerDamageAmount(base) {
   if (selectedHero.resourceKind === 'hatred') return base * (1 + heroResource * 0.0045);
   if (selectedHero.resourceKind === 'momentum') return base * (1 + heroResource * 0.003);
   if (selectedHero.resourceKind === 'speedForce') return base * (heroResource >= 60 ? 1.18 : 1);
+  if (selectedHero.resourceKind === 'powerCosmic') return base * (1 + heroResource * 0.0015);
   return base;
 }
 
@@ -1364,6 +1378,47 @@ function usePlayerAbility() {
   if (!player?.userData.alive) return;
   const now = performance.now();
   if (now < abilityReadyAt) return;
+
+  if (selectedHero.id === 'kang') {
+    const rewind = [...temporalHistory].reverse().find(sample => now - sample.t >= 1400);
+    if (!rewind || heroResource < 40) {
+      showBanner(heroResource < 40 ? 'BUILD TEMPORAL CHARGE' : 'NO TIME ANCHOR', 650);
+      return;
+    }
+    const destination = new THREE.Vector3(rewind.x, rewind.y, rewind.z);
+    if (!overlapsWorld(destination, 0.66)) {
+      player.position.copy(destination);
+      verticalVelocity = 0;
+      gainHeroResource(-40);
+      pulseEffect(player.position, selectedHero.color, 5.5, 0.55);
+      abilityReadyAt = now + selectedHero.abilityCooldown * 1000;
+      showBanner('TEMPORAL REWIND', 750);
+    }
+    return;
+  }
+
+  if (selectedHero.id === 'silver-surfer') {
+    if (heroResource < 30) {
+      showBanner('BUILD POWER COSMIC', 650);
+      return;
+    }
+    gainHeroResource(-30);
+    flightUntil = now + 4500;
+    player.position.y = Math.max(player.position.y, 2.8);
+    verticalVelocity = 0;
+    activateAbility(player, selectedHero.abilityKind, true);
+    abilityReadyAt = now + selectedHero.abilityCooldown * 1000;
+    showBanner('COSMIC FLIGHT', 750);
+    return;
+  }
+
+  if (selectedHero.id === 'doctor-doom' && heroResource >= 50) {
+    gainHeroResource(-50);
+    player.userData.empoweredUntil = Math.max(player.userData.empoweredUntil, now + 1800);
+    pulseEffect(player.position, selectedHero.color, 7, 0.45);
+    showBanner('ARCANE CHARGE EMPOWERED', 700);
+  }
+
   abilityReadyAt = now + selectedHero.abilityCooldown * 1000;
   activateAbility(player, selectedHero.abilityKind, true);
   showBanner(selectedHero.ability.toUpperCase(), 650);
@@ -1742,6 +1797,14 @@ function updateHeroResource(dt, now) {
     gainHeroResource(moving ? dt * 24 : -dt * 9);
   } else if (selectedHero.resourceKind === 'hatred') {
     gainHeroResource(-dt * 4.2);
+  } else if (selectedHero.resourceKind === 'arcaneCharge') {
+    gainHeroResource(-dt * 1.5);
+  } else if (selectedHero.resourceKind === 'temporalCharge') {
+    const moving = movedDistance > 0.01;
+    gainHeroResource(moving ? dt * 13 : dt * 5);
+  } else if (selectedHero.resourceKind === 'powerCosmic') {
+    const moving = movedDistance > 0.01;
+    gainHeroResource(moving ? dt * 16 : -dt * 3);
   }
 }
 
@@ -1759,19 +1822,33 @@ function updatePlayer(dt, now) {
   let speedBoost = player.userData.empoweredUntil > now ? 1.22 : 1;
   if (selectedHero.resourceKind === 'momentum') speedBoost *= 1 + heroResource * 0.0025;
   if (selectedHero.resourceKind === 'speedForce') speedBoost *= 1 + heroResource * 0.0038;
+  if (selectedHero.resourceKind === 'powerCosmic' && now < flightUntil) speedBoost *= 1.35;
   if (player.userData.hasteUntil > now) speedBoost *= 1.32;
   if (player.userData.slowedUntil > now) speedBoost *= 0.58;
   if (player.userData.rootedUntil <= now) moveWithCollision(player, move.multiplyScalar(selectedHero.speed * speedBoost * dt));
 
-  if (keys[settings.keybinds.jump] && grounded) { verticalVelocity = 8; grounded = false; }
-  verticalVelocity -= 20 * dt;
-  player.position.y += verticalVelocity * dt;
-  if (player.position.y <= 0) {
-    player.position.y = 0;
+  if (now < flightUntil && selectedHero.id === 'silver-surfer') {
+    grounded = false;
     verticalVelocity = 0;
-    grounded = true;
+    if (keys[settings.keybinds.jump]) player.position.y = Math.min(9, player.position.y + 5 * dt);
+    player.position.y = Math.max(2.2, player.position.y);
+  } else {
+    if (keys[settings.keybinds.jump] && grounded) { verticalVelocity = 8; grounded = false; }
+    verticalVelocity -= 20 * dt;
+    player.position.y += verticalVelocity * dt;
+    if (player.position.y <= 0) {
+      player.position.y = 0;
+      verticalVelocity = 0;
+      grounded = true;
+    }
   }
   player.rotation.y = yaw;
+
+  if (selectedHero.id === 'kang' && now - lastTemporalSampleAt >= 100) {
+    lastTemporalSampleAt = now;
+    temporalHistory.push({ t: now, x: player.position.x, y: player.position.y, z: player.position.z });
+    if (temporalHistory.length > 35) temporalHistory.shift();
+  }
 
   const camOffset = new THREE.Vector3(0, 3.15, 6.5).applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
   camera.position.lerp(player.position.clone().add(camOffset), 1 - Math.pow(0.001, dt));
