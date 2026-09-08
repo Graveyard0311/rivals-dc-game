@@ -367,8 +367,48 @@ function updatePayloadTransform() {
 }
 updatePayloadTransform();
 
+const MAX_PROJECTILES = 96;
+const MAX_EFFECTS = 64;
+const projectileGeometry = new THREE.SphereGeometry(0.16, 8, 8);
+const effectGeometry = new THREE.RingGeometry(0.5, 0.7, 40);
+const projectilePool = [];
+const effectPool = [];
 const effects = [];
 const projectiles = [];
+
+function acquireProjectileMesh(color) {
+  const mesh = projectilePool.pop() || new THREE.Mesh(
+    projectileGeometry,
+    new THREE.MeshBasicMaterial({ color })
+  );
+  mesh.material.color.setHex(color);
+  mesh.visible = true;
+  return mesh;
+}
+
+function releaseProjectile(projectile) {
+  scene.remove(projectile.mesh);
+  projectile.mesh.visible = false;
+  if (projectilePool.length < MAX_PROJECTILES) projectilePool.push(projectile.mesh);
+}
+
+function acquireEffectMesh(color) {
+  const mesh = effectPool.pop() || new THREE.Mesh(
+    effectGeometry,
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, side: THREE.DoubleSide })
+  );
+  mesh.material.color.setHex(color);
+  mesh.material.opacity = 0.9;
+  mesh.visible = true;
+  mesh.scale.setScalar(1);
+  return mesh;
+}
+
+function releaseEffect(effect) {
+  scene.remove(effect.mesh);
+  effect.mesh.visible = false;
+  if (effectPool.length < MAX_EFFECTS) effectPool.push(effect.mesh);
+}
 
 function overlapsWorld(pos, radius = 0.66) {
   if (Math.abs(pos.x) > 57 || Math.abs(pos.z) > 57) return true;
@@ -407,10 +447,8 @@ function showHitFeedback(amount) {
 }
 
 function spawnProjectile(actor, direction, damageAmount, speed) {
-  const mesh = new THREE.Mesh(
-    new THREE.SphereGeometry(0.16, 8, 8),
-    new THREE.MeshBasicMaterial({ color: actor.userData.hero.color })
-  );
+  if (projectiles.length >= MAX_PROJECTILES) releaseProjectile(projectiles.shift());
+  const mesh = acquireProjectileMesh(actor.userData.hero.color);
   mesh.position.copy(actor.position).add(new THREE.Vector3(0, 1.35, 0)).add(direction.clone().multiplyScalar(0.9));
   scene.add(mesh);
   projectiles.push({
@@ -419,10 +457,8 @@ function spawnProjectile(actor, direction, damageAmount, speed) {
   });
 }
 function pulseEffect(position, color, radius = 3, duration = 0.45) {
-  const mesh = new THREE.Mesh(
-    new THREE.RingGeometry(0.5, 0.7, 40),
-    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, side: THREE.DoubleSide })
-  );
+  if (effects.length >= MAX_EFFECTS) releaseEffect(effects.shift());
+  const mesh = acquireEffectMesh(color);
   mesh.rotation.x = -Math.PI / 2;
   mesh.position.copy(position).add(new THREE.Vector3(0, 0.08, 0));
   scene.add(mesh);
@@ -1668,8 +1704,8 @@ function updateProjectiles(dt) {
     }
 
     if (removed) {
-      scene.remove(p.mesh);
-      projectiles.splice(i, 1);
+      const [expired] = projectiles.splice(i, 1);
+      releaseProjectile(expired);
     }
   }
 }
@@ -1697,8 +1733,8 @@ function updateEffects(dt) {
     fx.mesh.scale.setScalar(scale);
     fx.mesh.material.opacity = 0.9 * (1 - t);
     if (t >= 1) {
-      scene.remove(fx.mesh);
-      effects.splice(i, 1);
+      const [expired] = effects.splice(i, 1);
+      releaseEffect(expired);
     }
   }
 }
