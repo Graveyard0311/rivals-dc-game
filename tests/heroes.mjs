@@ -6,6 +6,7 @@ const attackTypes = new Set(['beam', 'projectile', 'melee']);
 const abilityKinds = new Set(['dash', 'blink', 'shield', 'teamShield', 'heal', 'burst']);
 const secondaryKinds = new Set(['slowBurst', 'heavyProjectile', 'phase', 'rootBurst', 'knockbackBurst', 'heavyBeam', 'selfHaste']);
 const ultKinds = new Set(['slam', 'empower', 'stun', 'teamHeal']);
+const resourceKinds = new Set(['momentum', 'hatred', 'speedForce']);
 
 assert.ok(HEROES.length >= 30, 'expected at least 30 playable prototype heroes');
 
@@ -41,7 +42,15 @@ for (const hero of HEROES) {
   assert.ok(Number.isFinite(hero.abilityCooldown) && hero.abilityCooldown > 0, `${hero.id}: invalid abilityCooldown`);
   assert.ok(hero.ultimate, `${hero.id}: ultimate required`);
   assert.ok(ultKinds.has(hero.ultKind), `${hero.id}: invalid ultKind`);
+  if (hero.resourceKind) {
+    assert.ok(resourceKinds.has(hero.resourceKind), `${hero.id}: invalid resourceKind`);
+    assert.ok(hero.resourceLabel, `${hero.id}: resourceLabel required`);
+  }
 }
+
+assert.equal(getHero('juggernaut').resourceKind, 'momentum');
+assert.equal(getHero('gorr').resourceKind, 'hatred');
+assert.equal(getHero('flash').resourceKind, 'speedForce');
 
 for (const hero of HEROES) assert.equal(getHero(hero.id), hero);
 assert.equal(getHero('__missing__'), HEROES[0]);
