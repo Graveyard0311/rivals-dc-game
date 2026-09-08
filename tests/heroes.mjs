@@ -6,7 +6,7 @@ const attackTypes = new Set(['beam', 'projectile', 'melee']);
 const abilityKinds = new Set(['dash', 'blink', 'shield', 'teamShield', 'heal', 'burst']);
 const secondaryKinds = new Set(['slowBurst', 'heavyProjectile', 'phase', 'rootBurst', 'knockbackBurst', 'heavyBeam', 'selfHaste']);
 const ultKinds = new Set(['slam', 'empower', 'stun', 'teamHeal']);
-const resourceKinds = new Set(['momentum', 'hatred', 'speedForce', 'arcaneCharge', 'temporalCharge', 'powerCosmic']);
+const resourceKinds = new Set(['momentum', 'hatred', 'speedForce', 'arcaneCharge', 'temporalCharge', 'powerCosmic', 'infinityCharge']);
 
 assert.ok(HEROES.length >= 30, 'expected at least 30 playable prototype heroes');
 
@@ -54,6 +54,7 @@ assert.equal(getHero('flash').resourceKind, 'speedForce');
 assert.equal(getHero('doctor-doom').resourceKind, 'arcaneCharge');
 assert.equal(getHero('kang').resourceKind, 'temporalCharge');
 assert.equal(getHero('silver-surfer').resourceKind, 'powerCosmic');
+assert.equal(getHero('thanos').resourceKind, 'infinityCharge');
 
 for (const hero of HEROES) assert.equal(getHero(hero.id), hero);
 assert.equal(getHero('__missing__'), HEROES[0]);
