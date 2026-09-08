@@ -1,65 +1,174 @@
-# Alpha Test Checklist
+# Private Demo Test Guide
 
-## Launch
+## Fastest offline test
+
+1. Install Node.js 22 or newer.
+2. Clone the repository and open a terminal in the project root.
+3. Run:
+   ```bash
+   npm install
+   npm run dev
+   ```
+4. Open the local Vite URL.
+5. Pick an arena, mode, bot difficulty, and hero.
+6. Select **Deploy Offline Battle**.
+
+Offline matches run as 6v6 with bots filling every non-human slot.
+
+## Current modes
+
+- **Domination** — capture and hold the central Nexus; first team to 100 wins.
+- **Team Deathmatch** — eliminations score; first team to 30 wins.
+- **Convoy** — Alliance escorts a payload while Legion defends.
+- **Convergence** — both teams fight for a neutral point; the winning team becomes the payload escort team.
+
+## Current arenas
+
+- Nexus Arena
+- Gotham Industrial
+- Themyscira Ruins
+
+## Two-human private match test
+
+Use two browser windows, two computers, or two separate browser profiles.
+
+### Start the game server
+
+In terminal 1:
 
 ```bash
 npm install
+npm run server
+```
+
+The default WebSocket endpoint is:
+
+```text
+ws://localhost:8787
+```
+
+### Start the browser client
+
+In terminal 2:
+
+```bash
 npm run dev
 ```
 
-Open the Vite URL in a desktop browser.
+Open the Vite URL on both clients.
 
-## Core match checks
+On Client A:
 
-1. Select multiple heroes and verify the HUD updates primary, ability and ultimate names.
-2. Confirm the match starts as 6v6 with bots filling all open slots.
-3. Verify WASD movement, mouse aim, jump, primary fire, Shift ability and Q ultimate.
-4. Verify Vanguard, Duelist and Strategist heroes behave differently.
-5. Confirm shields reduce incoming damage.
-6. Confirm Strategist healing restores team health.
-7. Confirm stun ultimates temporarily prevent movement/attacks.
-8. Confirm empowered ultimates increase damage and movement.
-9. Confirm bots fight, rotate toward the Nexus and use abilities.
-10. Confirm deaths create kill-feed entries and respawn after five seconds.
-11. Confirm objective scoring changes the Nexus color and status text.
-12. Confirm contested scoring pauses and overtime appears at the finish threshold.
-13. Confirm victory resets the match.
+1. Enter a player name.
+2. Select a hero.
+3. Select mode, difficulty, and arena.
+4. Choose **Create Private Lobby**.
+5. Copy the six-character lobby code.
 
-## Known alpha limitations
+On Client B:
 
-- Bot navigation is steering-based rather than navmesh/pathfinding.
-- Arena collision and advanced traversal are still being expanded.
-- Character meshes are placeholders rather than finished models/animations.
-- Primary attacks are mostly hitscan placeholders.
-- Audio, settings, scoreboard detail and replay systems are not complete.
-- Two-human networking is not yet wired into the browser demo.
+1. Enter a player name.
+2. Enter Client A's lobby code.
+3. Choose **Join Lobby**.
 
+Client A is the host. Start the match from Client A.
 
-## Team Deathmatch test
+Expected behavior:
 
-1. Start the game and select **TEAM DEATHMATCH** before deploying.
-2. Confirm the central capture objective is hidden.
-3. Confirm eliminations increase the correct team score.
-4. Confirm the first team to 30 eliminations wins.
-5. In a two-client lobby, have the host select Team Deathmatch and start the match.
-6. Confirm both clients enter Team Deathmatch and display the same team scores.
-7. Confirm human-vs-human and human-vs-bot eliminations update the shared score once, without duplicate scoring.
+- Both humans appear in the same 6v6 match.
+- Bots fill remaining team slots.
+- Human transforms, HP/alive state, current ability effects, human-vs-human damage, bot state, objective state, mode state, and team scoring synchronize through the current networking layer.
+- Host migration is available if the lobby host leaves.
+- Human HP is still owner-applied rather than fully server-authoritative.
 
+## Core gameplay checks
 
-## Settings and keybind test
+1. Select several Vanguard, Duelist, and Strategist heroes and confirm different movement/combat profiles.
+2. Confirm primary, secondary, Shift ability, team-up, and ultimate labels match the selected hero.
+3. Confirm shields reduce incoming damage.
+4. Confirm healing restores allied health.
+5. Confirm slow/root/stun/knockback effects alter combat behavior.
+6. Confirm bots pursue objectives, seek cover at low health, and flank based on role.
+7. Confirm deaths create kill-feed entries and respawn after five seconds.
+8. Confirm match victory triggers correctly in all four modes.
+9. Test all three arenas for collision and route accessibility.
+10. Test Easy, Normal, Hard, and Expert bot difficulty.
 
-1. Open **SETTINGS & KEYBINDS** on the hero-select screen.
-2. Change FOV, mouse sensitivity, master volume and reduced camera shake.
-3. Remap movement, jump, ability and ultimate keys.
-4. Deploy and verify the new controls/settings apply immediately.
-5. Reload the game and verify settings persist.
-6. Use **RESET SETTINGS** and verify defaults are restored.
+## Controls
 
+Default controls:
 
-## Health-bar visibility test
+- WASD — movement
+- Mouse — aim
+- Left Mouse — primary
+- Right Mouse — secondary
+- Shift — hero ability
+- F — team-up ability when available
+- Q — ultimate
+- Space — jump
 
-1. Open **SETTINGS & KEYBINDS**.
-2. Disable **Show combatant health bars** and deploy.
-3. Confirm overhead health bars are hidden while HUD health remains visible.
-4. Reload and confirm the setting persists.
-5. Re-enable the setting and confirm bars return.
+Movement/jump/ability/ultimate keyboard bindings can be remapped in Settings.
+
+## Settings checks
+
+1. Change FOV, mouse sensitivity, master volume, reduced camera shake, and health-bar visibility.
+2. Remap supported keyboard controls.
+3. Reload and confirm settings persist.
+4. Use **Reset Settings** and confirm defaults return.
+
+## Automated validation
+
+Before gameplay changes are merged to `main`, CI runs:
+
+```bash
+npm run build
+npm run check:server
+npm run test:network
+npm run test:teamups
+npm run test:bots
+npm run test:arenas
+npm run test:heroes
+```
+
+## Downloadable builds
+
+### Browser artifact
+
+The **Build Check** workflow uploads the production `dist/` directory as:
+
+```text
+rivals-collision-web
+```
+
+### Desktop packages
+
+The **Desktop Packages** workflow produces Electron packages for supported platforms. Local packaging is available with:
+
+```bash
+npm run desktop:dist
+```
+
+Output is written to:
+
+```text
+release/
+```
+
+## Hosted browser demo prerequisite
+
+The Browser Demo workflow itself builds successfully, but GitHub currently blocks automatic creation of the repository's Pages site with:
+
+```text
+Resource not accessible by integration
+```
+
+This is a repository-level GitHub Pages enablement restriction, not a game build failure. After Pages is enabled once in repository settings, the existing workflow is already configured to deploy `main`.
+
+## Current alpha limitations
+
+- Original placeholder geometry is used instead of licensed character models.
+- Procedural/placeholder audio is used instead of production sound assets.
+- Human HP is owner-applied rather than fully server-authoritative.
+- Networking is intended for private testing, not hostile public matchmaking.
+- Many heroes use reusable prototype archetypes and still need deeper bespoke mechanics.
+- Wider browser/hardware playtesting remains necessary.
