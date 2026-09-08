@@ -209,6 +209,11 @@ wss.on('connection', ws => {
     if (msg.type === 'match-state') {
       if (lobby.hostId !== ws.meta.id) return;
       const state = msg.state || {};
+      const destructibles = Array.isArray(state.destructibles) ? state.destructibles.slice(0, 12).map(prop => ({
+        id: String(prop.id || '').slice(0, 48),
+        hp: Math.max(0, Number(prop.hp || 0)),
+        alive: Boolean(prop.alive)
+      })) : [];
       const bots = Array.isArray(state.bots) ? state.bots.slice(0, 12).map(bot => ({
         slot: Number(bot.slot),
         team: bot.team === 'red' ? 'red' : 'blue',
@@ -234,6 +239,7 @@ wss.on('connection', ws => {
           convergenceBlueCapture: Math.max(0, Math.min(100, Number(state.convergenceBlueCapture || 0))),
           convergenceRedCapture: Math.max(0, Math.min(100, Number(state.convergenceRedCapture || 0))),
           convergenceEscortTeam: state.convergenceEscortTeam === 'red' ? 'red' : 'blue',
+          destructibles,
           bots
         }
       }, ws.meta.id);
@@ -336,6 +342,25 @@ wss.on('connection', ws => {
             sourcePosition: event.sourcePosition && Number.isFinite(Number(event.sourcePosition.x)) && Number.isFinite(Number(event.sourcePosition.z))
               ? { x: Number(event.sourcePosition.x), y: Number(event.sourcePosition.y || 0), z: Number(event.sourcePosition.z) }
               : null
+          }
+        });
+        return;
+      }
+
+      if (event.kind === 'world-damage') {
+        if (lobby.hostId === ws.meta.id) return;
+        const host = lobby.clients.get(lobby.hostId);
+        const destructibleId = String(event.destructibleId || '').slice(0, 48);
+        const amount = Number(event.amount);
+        if (!host || !destructibleId || !Number.isFinite(amount) || amount <= 0) return;
+        send(host.ws, {
+          type: 'combat-event',
+          id: ws.meta.id,
+          event: {
+            kind: 'world-damage',
+            destructibleId,
+            amount: Math.min(amount, 400),
+            sourceName: String(self.name || 'Player').slice(0, 48)
           }
         });
         return;
