@@ -93,3 +93,8 @@
 - Swap while dead without skipping respawn ✅
 - Spawn-area hero swapping ✅
 - Networked remote hero visual/state updates ✅
+
+
+## Spawn-room flow
+- Server-authoritative 2.5s spawn protection ✅
+- HUD protection countdown ✅
