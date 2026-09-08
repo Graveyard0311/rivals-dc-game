@@ -40,6 +40,7 @@ let convergenceEscortTeam = 'blue';
 let playerDeaths = 0;
 let playerKills = 0;
 let respawnAt = 0;
+let spectatorIndex = 0;
 let yaw = 0;
 let pitch = -0.12;
 let verticalVelocity = 0;
@@ -164,6 +165,7 @@ app.innerHTML = `
         </div>
       </div>
     </div>
+    <div id="spectatorLabel" class="spectator-label hidden"></div>
     <div id="banner" class="banner"></div>
     <div id="killfeed" class="killfeed"></div>
   </div>
@@ -1499,6 +1501,8 @@ addEventListener('keydown', e => {
     renderScoreboard();
   }
   if (e.code === 'KeyV' && !e.repeat) toggleShoulder();
+  if (!player?.userData.alive && !e.repeat && (e.code === 'BracketLeft' || e.code === 'ArrowLeft')) cycleSpectator(-1);
+  if (!player?.userData.alive && !e.repeat && (e.code === 'BracketRight' || e.code === 'ArrowRight')) cycleSpectator(1);
   if (e.code === 'KeyC' && !e.repeat) useQuickMelee();
   if (e.code === settings.keybinds.ability) usePlayerAbility();
   if (e.code === 'KeyF') useTeamUp();
@@ -2376,6 +2380,74 @@ function updateHeroResource(dt, now) {
   }
 }
 
+function spectatorAllies() {
+  if (!player) return [];
+  return fighters.filter(f => f !== player && f.userData.team === player.userData.team && f.userData.alive);
+}
+
+function cycleSpectator(step = 1) {
+  const allies = spectatorAllies();
+  if (!allies.length) {
+    spectatorIndex = 0;
+    return;
+  }
+  spectatorIndex = (spectatorIndex + step + allies.length) % allies.length;
+}
+
+function updateSpectator(dt) {
+  if (!player || player.userData.alive || trainingMode) {
+    document.querySelector('#spectatorLabel')?.classList.add('hidden');
+    return;
+  }
+
+  const gp = activeGamepad();
+  if (gp) {
+    const buttons = gp.buttons.map(b => Boolean(b.pressed || b.value > 0.55));
+    const pressed = i => buttons[i] && !previousGamepadButtons[i];
+    if (pressed(14)) cycleSpectator(-1);
+    if (pressed(15)) cycleSpectator(1);
+    previousGamepadButtons = buttons;
+  }
+
+  const allies = spectatorAllies();
+  const label = document.querySelector('#spectatorLabel');
+  if (!allies.length) {
+    label?.classList.remove('hidden');
+    if (label) label.textContent = 'SPECTATING · NO LIVING ALLIES';
+    return;
+  }
+
+  spectatorIndex = ((spectatorIndex % allies.length) + allies.length) % allies.length;
+  const target = allies[spectatorIndex];
+
+  if (label) {
+    label.classList.remove('hidden');
+    label.textContent = `SPECTATING · ${fighterDisplayName(target)} · ${target.userData.hero.name} · [ / ] SWITCH`;
+  }
+
+  const focus = target.position.clone().add(new THREE.Vector3(0, 1.5, 0));
+  const followYaw = target.rotation.y || 0;
+  const offset = new THREE.Vector3(shoulderSide * 0.7, 2.8, 5.8)
+    .applyAxisAngle(new THREE.Vector3(0, 1, 0), followYaw);
+  const desired = target.position.clone().add(offset);
+  const vector = desired.clone().sub(focus);
+  const distance = vector.length();
+  const direction = vector.clone().normalize();
+  const obstacles = [
+    ...arenaStructures,
+    ...destructibles.filter(prop => prop.alive).map(prop => prop.mesh)
+  ];
+  cameraRaycaster.set(focus, direction);
+  cameraRaycaster.far = distance;
+  const hits = cameraRaycaster.intersectObjects(obstacles, false);
+  const cameraTarget = hits.length
+    ? focus.clone().add(direction.multiplyScalar(Math.max(0.85, hits[0].distance - 0.35)))
+    : desired;
+
+  camera.position.lerp(cameraTarget, 1 - Math.pow(0.001, dt));
+  camera.lookAt(focus.clone().add(new THREE.Vector3(0, 0.25, 0)));
+}
+
 function updatePlayer(dt, now) {
   if (!player?.userData.alive || matchOver || now < player.userData.stunnedUntil) return;
   const gamepad = pollGamepad(dt);
@@ -2600,9 +2672,11 @@ function updateHud(now) {
 
   if (!player.userData.alive) {
     const remain = Math.max(0, Math.ceil((respawnAt - now) / 1000));
-    showBanner(`RESPAWN IN ${remain}`, 300);
-  } else if (now < player.userData.stunnedUntil) {
-    showBanner('STUNNED', 250);
+    showBanner(`RESPAWN IN ${remain} · [ / ] SPECTATE`, 300);
+  } else {
+    document.querySelector('#spectatorLabel')?.classList.add('hidden');
+    if (now < player.userData.stunnedUntil)
+      showBanner('STUNNED', 250);
   }
 }
 
@@ -2614,6 +2688,7 @@ function animate() {
 
   if (matchStarted) {
     updatePlayer(dt, now);
+    updateSpectator(dt);
     updateHeroResource(dt, now);
     if (joinedLobby && network.connected && player && now - lastNetworkStateAt >= 100) {
       lastNetworkStateAt = now;

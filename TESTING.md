@@ -239,3 +239,13 @@ This is a repository-level GitHub Pages enablement restriction, not a game build
 3. Confirm repeated presses respect the short melee lockout.
 4. Use quick melee against breakable cover and confirm it loses HP.
 5. In a private match, quick-melee a remote human and confirm the normal server-authoritative damage path resolves the hit.
+
+
+## Respawn spectator test
+
+1. Die during an offline or private match.
+2. Confirm the camera automatically follows a living teammate instead of staying at the death location.
+3. Press **[ / ]** or Left/Right Arrow to cycle living teammates.
+4. On controller, use D-pad Left/Right to cycle.
+5. Confirm spectator camera collision prevents wall clipping.
+6. Confirm normal player camera/control resumes automatically after respawn.

@@ -178,3 +178,13 @@ Every hero now has a short-range quick melee separate from their primary attack.
 - **B / Circle** — quick melee on standard controller layouts
 
 Quick melee has a short lockout, can finish nearby enemies, applies light knockback, and can damage destructible cover.
+
+
+## Respawn spectator
+
+When the local player is eliminated in a normal match, the camera automatically follows a living teammate until respawn.
+
+- **[ / ]** or **Left / Right Arrow** — previous/next teammate
+- **D-pad Left / Right** — previous/next teammate on controller
+
+The spectator camera uses the same collision-aware third-person camera and returns control automatically when the player respawns.
