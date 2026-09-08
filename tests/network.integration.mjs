@@ -105,6 +105,18 @@ try {
   assert.equal(joinedB.team, 'red');
   assert.equal(joinedB.players.length, 2);
   assert.equal(joinedNotice.players.length, 2);
+  assert.equal(joinedB.players.find(p => p.id === helloB.playerId).ready, false);
+
+  const notReadyError = nextMessage(a, m => m.type === 'error' && m.code === 'PLAYERS_NOT_READY');
+  send(a, 'start-match', { mode: 'convoy', difficulty: 'hard', arena: 'gotham' });
+  const blockedStart = await notReadyError;
+  assert.equal(blockedStart.waiting.length, 1);
+  assert.equal(blockedStart.waiting[0].id, helloB.playerId);
+
+  const readyOnA = nextMessage(a, m => m.type === 'player-ready' && m.id === helloB.playerId && m.ready === true);
+  send(b, 'set-ready', { ready: true });
+  const readyNotice = await readyOnA;
+  assert.equal(readyNotice.players.find(p => p.id === helloB.playerId).ready, true);
 
   const matchStartB = nextMessage(b, m => m.type === 'match-start');
   send(a, 'start-match', { mode: 'convoy', difficulty: 'hard', arena: 'gotham' });
