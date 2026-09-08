@@ -277,3 +277,13 @@ This is a repository-level GitHub Pages enablement restriction, not a game build
 3. Attempt to start from Client A and confirm launch is blocked while Client B is unready.
 4. Mark Client B ready and confirm both clients update the ready count.
 5. Confirm the host can now start the match.
+
+
+## Post-match results test
+
+1. Finish each supported mode and confirm the game does not automatically reload.
+2. Confirm the results screen names the winning team and shows the current mode/map.
+3. Confirm both team tables list hero, role, kills, and deaths.
+4. Confirm an MVP is selected from match K/D data and the local player's final K/D is shown.
+5. In a private match, confirm the non-host client opens results when the host-authoritative match state ends.
+6. Select **Return to Lobby / Menu** and confirm the app resets cleanly.
